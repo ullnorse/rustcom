@@ -1,3 +1,9 @@
+mod cli;
+mod serial;
+mod tui;
+mod gui;
+mod tabs;
+
 fn main() {
-    println!("Hello, world!");
+    cli::Cli::run();
 }
