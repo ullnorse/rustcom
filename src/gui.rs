@@ -4,57 +4,131 @@ pub mod menu_bar;
 pub mod modals;
 mod status_bar;
 
-use super::serial::SerialConfig;
+use super::serial::{SerialConfig, Serial};
 use super::tabs::{Tabs, default_ui};
 
-use egui::{Style, Visuals, Context, LayerId, Id, Ui, CentralPanel};
+use line_end_picker::LineEnd;
+
+use egui::{Style, Visuals, Context, CentralPanel};
 use eframe::{NativeOptions, IconData, CreationContext, Frame};
 use flume::{unbounded, Sender, Receiver};
 use egui_dock::{DockArea, Tree};
 use parking_lot::RwLock;
+use arboard::Clipboard;
 
 use std::ops::DerefMut;
 use std::sync::Arc;
 
 pub enum Message {
+    Connect,
+    Disconnect,
     ShowAbout,
     CloseAbout,
-    HelloWorld,
+    Copy,
+    Paste,
+    ClearReceiveText,
+    Cut,
+    SerialDataReceived(String),
+    DataForTransmit(String),
 }
 
 pub struct App {
     channel: (Sender<Message>, Receiver<Message>),
     tree: Arc<RwLock<Tree<Tabs>>>,
-    pub device: String,
     pub serial_config: SerialConfig,
-    pub terminal_text: String,
+    pub serial: Serial,
+    pub receive_text: String,
+    pub transmit_text: String,
+
+    pub device_connected: bool,
+    pub current_serial_device: String,
+    pub serial_devices: Vec<String>,
+
+    pub line_end: LineEnd,
+    pub timestamp: bool,
+    pub lock_scrolling: bool,
 
     show_about: bool,
 }
 
 impl App {
-    fn new(cc: &CreationContext, device: String, config: SerialConfig) -> Self {
-        Self {
+    fn new(_cc: &CreationContext, device: String, config: SerialConfig) -> Self {
+        let mut app = Self {
             channel: unbounded(),
             tree: Arc::new(RwLock::new(default_ui())),
-            device,
+            serial: Serial::new(),
             serial_config: config,
-            terminal_text: String::new(),
+            receive_text: String::new(),
+            transmit_text: String::new(),
+
+            device_connected: false,
+            current_serial_device: String::new(),
+            serial_devices: Serial::available_ports(),
+
+            line_end: LineEnd::default(),
+            timestamp: false,
+            lock_scrolling: true,
+
             show_about: false,
-        }
+        };
+
+        app.current_serial_device = if !device.is_empty() {
+            device
+        } else if !app.serial_devices.is_empty(){
+            app.serial_devices[0].clone()
+        } else {
+            String::new()
+        };
+
+        app
     }
 
-    fn do_update(&self, message: Message) {
+    pub fn do_update(&self, message: Message) {
         self.channel.0.send(message).unwrap();
     }
 
-    fn handle_update(&mut self, ctx: &Context, frame: &mut Frame) {
+    fn handle_update(&mut self, _ctx: &Context, _frame: &mut Frame) {
         if let Ok(message) = self.channel.1.try_recv() {
             match message {
-                Message::HelloWorld => println!("Hello World"),
+                Message::Connect => self.serial.start(&self.current_serial_device, self.serial_config.clone()).unwrap(),
+                Message::Disconnect => self.serial.stop().unwrap(),
+                Message::DataForTransmit(text) => {
+                    if self.device_connected {
+                        self.serial.send(&text);
+                    }
+                },
+                Message::SerialDataReceived(text) => {
+                    self.receive_text.push_str(&text);
+                    if self.timestamp {
+                        self.receive_text.push_str(&chrono::Local::now().format(" %H:%M:%S> ").to_string());
+                    }
+                },
                 Message::ShowAbout => self.show_about = true,
                 Message::CloseAbout => self.show_about = false,
+                Message::Copy => Clipboard::new().unwrap().set_text(self.receive_text.clone()).unwrap(),
+                Message::Cut => {
+                    Clipboard::new().unwrap().set_text(self.receive_text.clone()).unwrap();
+                    self.receive_text.clear();
+                },
+                Message::Paste => {
+                    if let Ok(text) = Clipboard::new().unwrap().get_text() {
+                        self.transmit_text.push_str(&text);
+                    }
+                },
+                Message::ClearReceiveText => self.receive_text.clear(),
             }
+        }
+    }
+
+    fn handle_serial(&self) {
+        if let Some(text) = self.serial.try_recv() {
+            self.do_update(Message::SerialDataReceived(text));
+        }
+    }
+
+    fn handle_repaint(&self, ctx: &Context) {
+        if self.device_connected {
+            ctx.request_repaint();
         }
     }
 }
@@ -64,6 +138,10 @@ impl eframe::App for App {
         self.handle_update(ctx, frame);
         self.render_menu(ctx, frame);
         self.render_status_bar(ctx, frame);
+
+        self.handle_serial();
+
+        self.handle_repaint(ctx);
 
         self.render_about(ctx);
 

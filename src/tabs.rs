@@ -1,12 +1,11 @@
 use egui_dock::{TabViewer, Tree};
-use egui::{ScrollArea, TextEdit, Layout};
-use super::gui::App;
+use egui::{ScrollArea, TextEdit, Layout, Align};
+use super::gui::{App, Message};
 use super::gui::port_settings::PortSettingsWindow;
-use super::gui::line_end_picker::{LineEnd, LineEndPicker};
+use super::gui::line_end_picker::LineEndPicker;
 
 #[derive(Debug)]
 pub enum Tabs {
-    Info,
     Terminal,
     Log,
     Settings,
@@ -35,49 +34,63 @@ impl TabViewer for App {
         match tab {
             Tabs::Terminal => {
                 ui.horizontal(|ui| {
-                    ui.button("Connect");
-                    ui.button("Record");
+                    if self.device_connected {
+                        if ui.button("Disconnect").clicked() {
+                            self.do_update(Message::Disconnect);
+                            self.device_connected = false;
+                        }
+                    } else if ui.button("Connect").clicked() {
+                        self.do_update(Message::Connect);
+                        self.device_connected = true;
+                    }
 
-                    let mut time = false;
-                    ui.checkbox(&mut time, "Time");
+                    if ui.button("Record").clicked() {
+                        
+                    }
 
-                    let mut lock_scrolling = true;
-                    ui.checkbox(&mut lock_scrolling, "Lock scrolling");
+                    ui.checkbox(&mut self.timestamp, "Time").on_hover_text("Show time in receive box");
+                    ui.checkbox(&mut self.lock_scrolling, "Lock scrolling");
                 });
 
                 ui.vertical(|ui| {
                     ui.with_layout(Layout::bottom_up(egui::Align::Center), |ui| {
                         ui.horizontal(|ui| {
                             ui.with_layout(Layout::right_to_left(egui::Align::Max), |ui| {
-                                let mut line_end = LineEnd::CR;
+                                ui.add(LineEndPicker::new(70f32, &mut self.line_end));
 
-                                ui.add(LineEndPicker::new(70f32, &mut line_end));
+                                if ui.button("Send").clicked() {
+                                    let mut s = self.transmit_text.clone();
+                                    s.push_str(self.line_end.into());
 
-                                ui.button("button1");
-                                ui.button("button2");
-                                let mut s = String::new();
+                                    self.do_update(Message::DataForTransmit(s));
+                                }
 
-                                ui.add_sized(ui.available_size(), TextEdit::singleline(&mut s));
+                                if ui.button("Clear").clicked() {
+                                    self.do_update(Message::ClearReceiveText);
+                                }
+
+                                ui.add_sized(ui.available_size(), TextEdit::singleline(&mut self.transmit_text));
                             });
                         });
 
-
                         ScrollArea::vertical()
                             .auto_shrink([false, false])
-                            .stick_to_bottom(true)
-                            .show_viewport(ui, |ui, _viewport| {
-                                ui.add_sized(ui.available_size(), TextEdit::multiline(&mut self.terminal_text).interactive(false))
+                            .stick_to_bottom(self.lock_scrolling)
+                            .show(ui, |ui| {
+                                ui.with_layout(Layout::left_to_right(Align::Center).with_cross_justify(true), |ui| {
+                                    ui.add_sized(ui.available_size(), TextEdit::multiline(&mut self.receive_text).interactive(false))
+                                });
                             });
                     });
                 });
             }
 
             Tabs::Settings => {
-                let devices = vec!["COM1".to_string(), "COM2".to_string()];
                 let mut local_echo = false;
 
-                ui.add(PortSettingsWindow::new(&mut self.device,
-                    &devices ,
+                ui.add(PortSettingsWindow::new(
+                    &mut self.current_serial_device,
+                    &self.serial_devices ,
                     &mut self.serial_config.baudrate,
                     &mut self.serial_config.char_size,
                     &mut self.serial_config.stop_bits,

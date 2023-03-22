@@ -1,17 +1,12 @@
 use egui::{ComboBox, Response, Widget};
 
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Default)]
 pub enum LineEnd {
+    #[default]
     LF,
     CR,
     CrLf,
     None,
-}
-
-impl Default for LineEnd {
-    fn default() -> Self {
-        LineEnd::LF
-    }
 }
 
 impl std::fmt::Display for LineEnd {

@@ -18,6 +18,7 @@ impl<'a> PortSettingsWindow<'a> {
     const FLOW_CONTROL: [FlowControl; 3] = [FlowControl::None, FlowControl::RtsCts, FlowControl::XonXoff];
     const STOP_BITS: [StopBits; 2] = [StopBits::One, StopBits::Two];
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         serial_device: &'a mut String,
         serial_devices: &'a Vec<String>,
