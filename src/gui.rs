@@ -6,7 +6,7 @@ mod status_bar;
 
 use super::serial::Serial;
 use super::serial::serial_config::SerialConfig;
-use tabs::{Tabs, default_ui};
+use tabs::{Tab, default_ui};
 use widgets::line_end_picker::LineEnd;
 
 use egui::{Style, Visuals, Context, CentralPanel, Key, KeyboardShortcut, Modifiers};
@@ -37,7 +37,7 @@ pub enum Message {
 
 pub struct App {
     channel: (Sender<Message>, Receiver<Message>),
-    tree: Arc<RwLock<Tree<Tabs>>>,
+    tree: Arc<RwLock<Tree<Box<dyn Tab>>>>,
     pub serial_config: SerialConfig,
     pub serial: Serial,
     pub receive_text: String,
