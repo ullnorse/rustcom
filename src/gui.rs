@@ -33,6 +33,7 @@ pub enum Message {
     DataForTransmit(String),
     CloseApplication,
     SetDefaultUi,
+    RefreshSerialDevices,
 }
 
 pub struct App {
@@ -137,6 +138,12 @@ impl App {
                 Message::ClearReceiveText => self.receive_text.clear(),
                 Message::CloseApplication => frame.close(),
                 Message::SetDefaultUi => *self.tree.write() = default_ui(),
+                Message::RefreshSerialDevices => {
+                    self.serial_devices = Serial::available_ports();
+                    if !self.serial_devices.is_empty() {
+                        self.current_serial_device = self.serial_devices[0].clone();
+                    }
+                },
             }
         }
     }
