@@ -79,10 +79,7 @@ impl Serial {
 
         Self::clear_buffer(&mut port);
 
-
         let shared_port = Arc::new(port);
-
-
 
         let receive_port = shared_port.clone();
 
@@ -91,7 +88,6 @@ impl Serial {
 
             loop {
                 if receive_state_channel.try_recv().is_ok() {
-                    println!("Ending receive thread");
                     break;
                 }
 
@@ -111,13 +107,12 @@ impl Serial {
         thread::spawn(move || {
             loop {
                 if transmit_state_channel.try_recv().is_ok() {
-                    println!("Ending transmit thread");
                     break;
                 }
 
                 if let Ok(s) = output_receiver.recv_timeout(std::time::Duration::from_millis(100)) {
-                    if let Ok(size) = transmit_port.write(s.as_bytes()) {
-                        println!("Transmit thread: send {size} bytes successfully");
+                    if let Ok(_size) = transmit_port.write(s.as_bytes()) {
+
                     }
                 }
             }

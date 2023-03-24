@@ -9,7 +9,7 @@ use super::tabs::{Tabs, default_ui};
 
 use line_end_picker::LineEnd;
 
-use egui::{Style, Visuals, Context, CentralPanel};
+use egui::{Style, Visuals, Context, CentralPanel, Key, KeyboardShortcut, Modifiers};
 use eframe::{NativeOptions, IconData, CreationContext, Frame};
 use flume::{unbounded, Sender, Receiver};
 use egui_dock::{DockArea, Tree};
@@ -19,6 +19,7 @@ use arboard::Clipboard;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub enum Message {
     Connect,
     Disconnect,
@@ -30,6 +31,8 @@ pub enum Message {
     Cut,
     SerialDataReceived(String),
     DataForTransmit(String),
+    CloseApplication,
+    SetDefaultUi,
 }
 
 pub struct App {
@@ -49,6 +52,12 @@ pub struct App {
     pub lock_scrolling: bool,
 
     show_about: bool,
+
+    rx_cnt: u32,
+    tx_cnt: u32,
+
+    recording_started: bool,
+    log_file_name: String,
 }
 
 impl App {
@@ -70,6 +79,12 @@ impl App {
             lock_scrolling: true,
 
             show_about: false,
+
+            rx_cnt: 0,
+            tx_cnt: 0,
+
+            recording_started: false,
+            log_file_name: String::new(),
         };
 
         app.current_serial_device = if !device.is_empty() {
@@ -87,17 +102,19 @@ impl App {
         self.channel.0.send(message).unwrap();
     }
 
-    fn handle_update(&mut self, _ctx: &Context, _frame: &mut Frame) {
+    fn handle_update(&mut self, _ctx: &Context, frame: &mut Frame) {
         if let Ok(message) = self.channel.1.try_recv() {
             match message {
                 Message::Connect => self.serial.start(&self.current_serial_device, self.serial_config.clone()).unwrap(),
                 Message::Disconnect => self.serial.stop().unwrap(),
                 Message::DataForTransmit(text) => {
                     if self.device_connected {
+                        self.tx_cnt += text.len() as u32;
                         self.serial.send(&text);
                     }
                 },
                 Message::SerialDataReceived(text) => {
+                    self.rx_cnt += text.len() as u32;
                     self.receive_text.push_str(&text);
                     if self.timestamp {
                         self.receive_text.push_str(&chrono::Local::now().format(" %H:%M:%S> ").to_string());
@@ -116,6 +133,8 @@ impl App {
                     }
                 },
                 Message::ClearReceiveText => self.receive_text.clear(),
+                Message::CloseApplication => frame.close(),
+                Message::SetDefaultUi => *self.tree.write() = default_ui(),
             }
         }
     }
@@ -131,17 +150,34 @@ impl App {
             ctx.request_repaint();
         }
     }
+
+    fn handle_keypress(&self, ctx: &Context) {
+        let shortcuts = [
+            (Message::Copy, KeyboardShortcut::new(Modifiers::CTRL, Key::C)),
+            (Message::Cut, KeyboardShortcut::new(Modifiers::CTRL, Key::X)),
+            (Message::Paste, KeyboardShortcut::new(Modifiers::CTRL, Key::V)),
+            (Message::ClearReceiveText, KeyboardShortcut::new(Modifiers::CTRL, Key::L)),
+        ];
+
+        for (message, shortcut) in &shortcuts {
+            if ctx.input_mut(|i| i.consume_shortcut(shortcut)) {
+                self.do_update(message.clone());
+                break;
+            }
+        }
+    }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &Context, frame: &mut Frame) {
         self.handle_update(ctx, frame);
-        self.render_menu(ctx, frame);
+        self.render_menu(ctx);
         self.render_status_bar(ctx, frame);
 
         self.handle_serial();
 
         self.handle_repaint(ctx);
+        self.handle_keypress(ctx);
 
         self.render_about(ctx);
 
@@ -152,8 +188,6 @@ impl eframe::App for App {
 }
 
 pub fn run(device: String, config: SerialConfig) {
-    println!("Started GUI app");
-
     eframe::run_native(
         "rustcom",
         NativeOptions {

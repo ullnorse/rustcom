@@ -1,12 +1,17 @@
 use super::{App, Message};
 use egui::{Context, TopBottomPanel, Ui};
-use eframe::Frame;
-use super::default_ui;
 
 impl App {
-    pub fn render_menu(&mut self, ctx: &Context, _frame: &mut Frame) {
+    fn create_menu_item(&self, ui: &mut Ui, label: &str, message: Message, shortcut: Option<&str>) {
+        if ui.button(format!("{:<30}{}", label, shortcut.unwrap_or_default())).clicked() {
+            self.do_update(message);
+            ui.close_menu();
+        }
+    }
+
+    pub fn render_menu(&mut self, ctx: &Context) {
         TopBottomPanel::top("menu_bar").show(ctx, |ui| {
-            ui.style_mut().visuals.button_frame = true;
+            ui.style_mut().visuals.button_frame = false;
             ui.horizontal(|ui| {
                 ui.menu_button("File", |ui| self.file_menu(ui));
                 ui.menu_button("Edit", |ui| self.edit_menu(ui));
@@ -17,64 +22,22 @@ impl App {
     }
 
     pub fn file_menu(&self, ui: &mut Ui) {
-        if ui.button("Open Settings").clicked() {
-
-        }
-
-        if ui.button("Open Recent").clicked() {
-
-        }
-
-        ui.separator();
-
-        if ui.button("Save Settings").clicked() {
-
-        }
-        if ui.button("Save Settings As").clicked() {
-
-        }
-
-        ui.separator();
-
-        if ui.button("Quit").clicked() {
-
-        }
+        self.create_menu_item(ui, "Quit", Message::CloseApplication, None);
     }
 
     pub fn edit_menu(&self, ui: &mut Ui) {
-        if ui.button("Cut                              Ctrl+X").clicked() {
-            self.do_update(Message::Cut);
-            ui.close_menu();
-        }
-
-        if ui.button("Copy                           Ctrl+C").clicked() {
-            self.do_update(Message::Copy);
-            ui.close_menu();
-        }
-
-        if ui.button("Paste                          Ctrl+V").clicked() {
-            self.do_update(Message::Paste);
-            ui.close_menu();
-        }
-
+        self.create_menu_item(ui, "Cut", Message::Cut, Some("  Ctrl+X"));
+        self.create_menu_item(ui, "Copy", Message::Copy, Some("Ctrl+C"));
+        self.create_menu_item(ui, "Paste", Message::Paste, Some("Ctrl+V"));
         ui.separator();
-
-        if ui.button("Clear                           Ctrl+L").clicked() {
-            self.do_update(Message::ClearReceiveText);
-            ui.close_menu();
-        }
+        self.create_menu_item(ui, "Clear", Message::ClearReceiveText, Some("Ctrl+L"));
     }
 
     pub fn window_menu(&self, ui: &mut Ui) {
-        if ui.button("Reset").clicked() {
-            ui.close_menu();
-            *self.tree.write() = default_ui();
-        }
+        self.create_menu_item(ui, "Reset", Message::SetDefaultUi, None);
     }
 
     pub fn help_menu(&self, ui: &mut Ui) {
-        if ui.button("About").clicked() {
-            self.do_update(Message::ShowAbout);
-        }
+        self.create_menu_item(ui, "About", Message::ShowAbout, None);
     }
 }

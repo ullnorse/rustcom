@@ -45,7 +45,7 @@ impl TabViewer for App {
                     }
 
                     if ui.button("Record").clicked() {
-                        
+
                     }
 
                     ui.checkbox(&mut self.timestamp, "Time").on_hover_text("Show time in receive box");
@@ -58,15 +58,15 @@ impl TabViewer for App {
                             ui.with_layout(Layout::right_to_left(egui::Align::Max), |ui| {
                                 ui.add(LineEndPicker::new(70f32, &mut self.line_end));
 
+                                if ui.button("Clear").clicked() {
+                                    self.do_update(Message::ClearReceiveText);
+                                }
+
                                 if ui.button("Send").clicked() {
                                     let mut s = self.transmit_text.clone();
                                     s.push_str(self.line_end.into());
 
                                     self.do_update(Message::DataForTransmit(s));
-                                }
-
-                                if ui.button("Clear").clicked() {
-                                    self.do_update(Message::ClearReceiveText);
                                 }
 
                                 ui.add_sized(ui.available_size(), TextEdit::singleline(&mut self.transmit_text));
