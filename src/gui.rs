@@ -1,13 +1,13 @@
-pub mod port_settings;
-pub mod line_end_picker;
+pub mod widgets;
 pub mod menu_bar;
 pub mod modals;
+pub mod tabs;
 mod status_bar;
 
-use super::serial::{SerialConfig, Serial};
-use super::tabs::{Tabs, default_ui};
-
-use line_end_picker::LineEnd;
+use super::serial::Serial;
+use super::serial::serial_config::SerialConfig;
+use tabs::{Tabs, default_ui};
+use widgets::line_end_picker::LineEnd;
 
 use egui::{Style, Visuals, Context, CentralPanel, Key, KeyboardShortcut, Modifiers};
 use eframe::{NativeOptions, IconData, CreationContext, Frame};
@@ -50,6 +50,7 @@ pub struct App {
     pub line_end: LineEnd,
     pub timestamp: bool,
     pub lock_scrolling: bool,
+    pub local_echo: bool,
 
     show_about: bool,
 
@@ -77,6 +78,7 @@ impl App {
             line_end: LineEnd::default(),
             timestamp: false,
             lock_scrolling: true,
+            local_echo: false,
 
             show_about: false,
 

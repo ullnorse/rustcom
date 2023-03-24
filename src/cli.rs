@@ -1,10 +1,7 @@
 use std::path::PathBuf;
-
 use clap::Parser;
-
 use serial2::{FlowControl, CharSize, Parity, StopBits};
-
-use super::serial::SerialConfig;
+use super::serial::serial_config::SerialConfig;
 use super::gui;
 use super::tui;
 
