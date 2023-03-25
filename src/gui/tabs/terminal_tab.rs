@@ -2,6 +2,7 @@ use egui::Ui;
 use egui::{ScrollArea, TextEdit, Layout, Align};
 use crate::gui::Message;
 use crate::gui::widgets::line_end_picker::LineEndPicker;
+use crate::gui::widgets::file_protocol_picker::FileProtocolPicker;
 use super::App;
 use super::Tab;
 
@@ -20,8 +21,8 @@ impl Tab for TerminalTab {
                 app.device_connected = true;
             }
 
-            if ui.button("Record").clicked() {
-
+            if ui.button("Clear").clicked() {
+                app.do_update(Message::ClearReceiveText);
             }
 
             ui.checkbox(&mut app.timestamp, "Time").on_hover_text("Show time in receive box");
@@ -32,18 +33,13 @@ impl Tab for TerminalTab {
             ui.with_layout(Layout::bottom_up(egui::Align::Center), |ui| {
                 ui.horizontal(|ui| {
                     ui.with_layout(Layout::right_to_left(egui::Align::Max), |ui| {
+                        ui.add(FileProtocolPicker::new(80f32, &mut app.file_protocol));
+
+                        if ui.button("Send file...").clicked() {
+
+                        }
+
                         ui.add(LineEndPicker::new(70f32, &mut app.line_end));
-
-                        if ui.button("Clear").clicked() {
-                            app.do_update(Message::ClearReceiveText);
-                        }
-
-                        if ui.button("Send").clicked() {
-                            let mut s = app.transmit_text.clone();
-                            s.push_str(app.line_end.into());
-
-                            app.do_update(Message::DataForTransmit(s));
-                        }
 
                         ui.add_sized(ui.available_size(), TextEdit::singleline(&mut app.transmit_text));
                     });

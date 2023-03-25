@@ -1,6 +1,6 @@
-mod settings_tab;
+pub mod settings_tab;
 mod terminal_tab;
-mod log_tab;
+pub mod log_tab;
 
 use egui_dock::{TabViewer, Tree};
 use super::App;

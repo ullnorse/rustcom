@@ -6,8 +6,9 @@ mod status_bar;
 
 use super::serial::Serial;
 use super::serial::serial_config::SerialConfig;
-use tabs::{Tab, default_ui};
+use tabs::{Tab, default_ui, settings_tab};
 use widgets::line_end_picker::LineEnd;
+use widgets::file_protocol_picker::Protocol;
 
 use egui::{Style, Visuals, Context, CentralPanel, Key, KeyboardShortcut, Modifiers};
 use eframe::{NativeOptions, IconData, CreationContext, Frame};
@@ -51,7 +52,6 @@ pub struct App {
     pub line_end: LineEnd,
     pub timestamp: bool,
     pub lock_scrolling: bool,
-    pub local_echo: bool,
 
     show_about: bool,
 
@@ -60,6 +60,10 @@ pub struct App {
 
     recording_started: bool,
     log_file_name: String,
+
+    pub file_protocol: Protocol,
+
+    pub settings_tab_settings: settings_tab::Settings,
 }
 
 impl App {
@@ -79,7 +83,6 @@ impl App {
             line_end: LineEnd::default(),
             timestamp: false,
             lock_scrolling: true,
-            local_echo: false,
 
             show_about: false,
 
@@ -88,6 +91,10 @@ impl App {
 
             recording_started: false,
             log_file_name: String::new(),
+
+            file_protocol: Protocol::default(),
+
+            settings_tab_settings: settings_tab::Settings::default(),
         };
 
         app.current_serial_device = if !device.is_empty() {
@@ -173,6 +180,12 @@ impl App {
                 self.do_update(message.clone());
                 break;
             }
+        }
+
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
+            let mut s = self.transmit_text.clone();
+            s.push_str(self.line_end.into());
+            self.do_update(Message::DataForTransmit(s));
         }
     }
 }

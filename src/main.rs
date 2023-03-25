@@ -2,6 +2,7 @@ mod cli;
 mod serial;
 mod tui;
 mod gui;
+mod file_sender;
 
 fn main() {
     if let Err(e) = std::panic::catch_unwind(cli::Cli::run) {
