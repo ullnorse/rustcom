@@ -85,8 +85,6 @@ impl Cli {
             stop_bits: cli.stop_bits.unwrap_or(StopBits::One),
         };
 
-        println!("device: {}, Config: {:?}", device, config);
-
         if cli.no_gui {
             tui::run(&device, config);
         } else {

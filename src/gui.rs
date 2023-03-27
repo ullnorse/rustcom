@@ -6,7 +6,7 @@ mod status_bar;
 
 use super::serial::Serial;
 use super::serial::serial_config::SerialConfig;
-use tabs::{Tab, default_ui, settings_tab};
+use tabs::{Tab, default_ui};
 use widgets::line_end_picker::LineEnd;
 use widgets::file_protocol_picker::Protocol;
 
@@ -62,8 +62,6 @@ pub struct App {
     log_file_name: String,
 
     pub file_protocol: Protocol,
-
-    pub settings_tab_settings: settings_tab::Settings,
 }
 
 impl App {
@@ -93,8 +91,6 @@ impl App {
             log_file_name: String::new(),
 
             file_protocol: Protocol::default(),
-
-            settings_tab_settings: settings_tab::Settings::default(),
         };
 
         app.current_serial_device = if !device.is_empty() {

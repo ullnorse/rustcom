@@ -3,7 +3,7 @@ use super::Tab;
 pub struct LogTab;
 
 impl Tab for LogTab {
-    fn show_ui(&self, app: &mut crate::gui::App, ui: &mut egui::Ui) {
+    fn show_ui(&self, _app: &mut crate::gui::App, _ui: &mut egui::Ui) {
 
     }
 

@@ -23,6 +23,8 @@ egui_extras = {version = "0.21.0", features = ["image", "svg"]}
 once_cell = "1.17.1"
 arboard = "3.2.0"
 chrono = "0.4.24"
+dirs = "5.0.0"
+native-dialog = "0.6.3"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1.12"

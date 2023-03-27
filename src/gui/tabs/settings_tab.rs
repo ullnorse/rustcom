@@ -4,13 +4,6 @@ use crate::gui::Message;
 use super::App;
 use super::Tab;
 
-#[derive(Default)]
-pub struct Settings {
-    file_name: String,
-    logging_started: bool,
-    append: bool,
-}
-
 pub struct SettingsTab;
 
 impl SettingsTab {
@@ -103,21 +96,6 @@ impl Tab for SettingsTab {
                     }
                 });
             ui.end_row();
-        });
-
-        ui.add_space(30f32);
-
-        ui.horizontal(|ui| {
-            ui.label("Log file:");
-            ui.text_edit_singleline(&mut app.settings_tab_settings.file_name);
-        });
-
-        ui.horizontal(|ui| {
-            ui.checkbox(&mut app.settings_tab_settings.append, "Append");
-
-            if ui.button("...").clicked() {
-
-            }
         });
     }
 
