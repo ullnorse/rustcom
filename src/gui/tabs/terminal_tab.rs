@@ -21,6 +21,16 @@ impl Tab for TerminalTab {
                 app.device_connected = true;
             }
 
+            if !app.recording_started {
+                if ui.button("Record").clicked() {
+                    app.do_update(Message::StartRecording);
+                }
+            } else {
+                if ui.button("Stop recording").clicked() {
+                    app.do_update(Message::StopRecording);
+                }
+            }
+
             if ui.button("Clear").clicked() {
                 app.do_update(Message::ClearReceiveText);
             }

@@ -16,9 +16,12 @@ use flume::{unbounded, Sender, Receiver};
 use egui_dock::{DockArea, Tree};
 use parking_lot::RwLock;
 use arboard::Clipboard;
+use native_dialog::FileDialog;
 
+use std::io::{BufWriter, Write};
 use std::ops::DerefMut;
 use std::sync::Arc;
+use std::fs::{File, OpenOptions};
 
 #[derive(Clone)]
 pub enum Message {
@@ -35,6 +38,8 @@ pub enum Message {
     CloseApplication,
     SetDefaultUi,
     RefreshSerialDevices,
+    StartRecording,
+    StopRecording,
 }
 
 pub struct App {
@@ -125,6 +130,17 @@ impl App {
                     if self.timestamp {
                         self.receive_text.push_str(&chrono::Local::now().format(" %H:%M:%S> ").to_string());
                     }
+
+                    if self.recording_started {
+                        let mut f = OpenOptions::new()
+                            .append(true)
+                            .create(true)
+                            .truncate(false)
+                            .open(self.log_file_name.clone())
+                            .unwrap();
+
+                        f.write(text.as_bytes()).unwrap();
+                    }
                 },
                 Message::ShowAbout => self.show_about = true,
                 Message::CloseAbout => self.show_about = false,
@@ -147,6 +163,18 @@ impl App {
                         self.current_serial_device = self.serial_devices[0].clone();
                     }
                 },
+                Message::StartRecording => {
+                    if let Ok(Some(path)) = FileDialog::new()
+                        .set_location(dirs::home_dir().unwrap().to_str().unwrap())
+                        .show_open_single_file()
+                    {
+                        self.log_file_name = path.to_string_lossy().to_string();
+                        self.recording_started = true;
+                    }
+                },
+                Message::StopRecording => {
+                    self.recording_started = false;
+                }
             }
         }
     }

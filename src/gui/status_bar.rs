@@ -7,7 +7,7 @@ impl App {
         TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 global_dark_light_mode_switch(ui);
-                ui.label(format!("{} {} | {}, {}{}{} flow control: {}           TX: {} / RX: {}      {}",
+                ui.label(format!("{} {} | {}, {}{}{} flow control: {}           TX: {} | RX: {}      {}",
                     self.current_serial_device,
                     if self.device_connected {
                         "OPENED"
