@@ -9,7 +9,7 @@ impl App {
         }
     }
 
-    pub fn render_menu(&mut self, ctx: &Context) {
+    pub fn render_menu_bar(&mut self, ctx: &Context) {
         TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             ui.style_mut().visuals.button_frame = false;
             ui.horizontal(|ui| {

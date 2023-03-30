@@ -1,10 +1,9 @@
 use std::path::PathBuf;
 use clap::Parser;
 use serial2::{FlowControl, CharSize, Parity, StopBits};
-use super::serial::serial_config::SerialConfig;
-use super::gui;
-use super::tui;
-
+use crate::tui;
+use crate::serial::serial_config::SerialConfig;
+use crate::gui;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -70,7 +69,6 @@ fn possible_stop_bits(s: &str) -> Result<StopBits, String> {
     }
 }
 
-
 impl Cli {
     pub fn run() {
         let cli = Cli::parse();
@@ -86,9 +84,9 @@ impl Cli {
         };
 
         if cli.no_gui {
-            tui::run(&device, config);
+            tui::run(&device, config).ok();
         } else {
-            gui::run(device, config);
+            gui::run(device, config).ok();
         }
     }
 }

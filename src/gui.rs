@@ -4,8 +4,8 @@ pub mod modals;
 pub mod tabs;
 mod status_bar;
 
-use super::serial::Serial;
-use super::serial::serial_config::SerialConfig;
+use crate::serial::Serial;
+use crate::serial::serial_config::SerialConfig;
 use tabs::{Tab, default_ui};
 use widgets::line_end_picker::LineEnd;
 use widgets::file_protocol_picker::Protocol;
@@ -17,11 +17,12 @@ use egui_dock::{DockArea, Tree};
 use parking_lot::RwLock;
 use arboard::Clipboard;
 use native_dialog::FileDialog;
+use anyhow::Result;
 
-use std::io::{BufWriter, Write};
+use std::io::Write;
 use std::ops::DerefMut;
 use std::sync::Arc;
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 
 #[derive(Clone)]
 pub enum Message {
@@ -127,6 +128,7 @@ impl App {
                 Message::SerialDataReceived(text) => {
                     self.rx_cnt += text.len() as u32;
                     self.receive_text.push_str(&text);
+
                     if self.timestamp {
                         self.receive_text.push_str(&chrono::Local::now().format(" %H:%M:%S> ").to_string());
                     }
@@ -217,7 +219,7 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &Context, frame: &mut Frame) {
         self.handle_update(ctx, frame);
-        self.render_menu(ctx);
+        self.render_menu_bar(ctx);
         self.render_status_bar(ctx, frame);
 
         self.handle_serial();
@@ -233,29 +235,34 @@ impl eframe::App for App {
     }
 }
 
-pub fn run(device: String, config: SerialConfig) {
-    eframe::run_native(
-        "rustcom",
-        NativeOptions {
-            icon_data: Some(IconData {
-                height: 256,
-                width:  256,
-                rgba:   image::load_from_memory(include_bytes!("../assets/icon.png"))
-                    .unwrap()
-                    .to_rgba8()
-                    .into_vec(),
-            }),
-            min_window_size: Some(egui::Vec2::new(225.0, 225.0)),
-            initial_window_size: Some(egui::Vec2::new(1200.0, 800.0)),
-            ..Default::default()
-        },
-        Box::new(|cc| {
-            let style = Style {
-                visuals: Visuals::light(),
-                ..Style::default()
-            };
+pub fn run(device: String, config: SerialConfig) -> Result<(), eframe::Error> {
+    let icon_data = Some(IconData {
+        height: 256,
+        width: 256,
+        rgba: image::load_from_memory(include_bytes!("../assets/icon.png"))
+            .unwrap()
+            .to_rgba8()
+            .into_vec(),
+    });
+
+    let min_window_size = Some(egui::Vec2::new(225.0, 225.0));
+    let initial_window_size = Some(egui::Vec2::new(1200.0, 800.0));
+
+    let options = NativeOptions {
+        icon_data,
+        min_window_size,
+        initial_window_size,
+        ..Default::default()
+    };
+
+    let style = Style {
+        visuals: Visuals::light(),
+        ..Style::default()
+    };
+
+    eframe::run_native("rustcom", options, Box::new(|cc| {
             cc.egui_ctx.set_style(style);
             Box::new(App::new(cc, device, config))
-        }),
-    ).ok();
+        })
+    )
 }
