@@ -6,11 +6,13 @@ mod status_bar;
 
 use crate::serial::Serial;
 use crate::serial::serial_config::SerialConfig;
+use log::info;
 use tabs::{Tab, default_ui};
 use widgets::line_end_picker::LineEnd;
 use widgets::file_protocol_picker::Protocol;
+use crate::logger::{Entry, Logger, LOGGER, self};
 
-use egui::{Style, Visuals, Context, CentralPanel, Key, KeyboardShortcut, Modifiers};
+use egui::{Style, Visuals, Context, CentralPanel, Key, KeyboardShortcut, Modifiers, text::LayoutJob};
 use eframe::{NativeOptions, IconData, CreationContext, Frame};
 use flume::{unbounded, Sender, Receiver};
 use egui_dock::{DockArea, Tree};
@@ -41,6 +43,7 @@ pub enum Message {
     RefreshSerialDevices,
     StartRecording,
     StopRecording,
+    Log(Entry),
 }
 
 pub struct App {
@@ -68,6 +71,8 @@ pub struct App {
     log_file_name: String,
 
     pub file_protocol: Protocol,
+
+    pub log: String,
 }
 
 impl App {
@@ -97,7 +102,11 @@ impl App {
             log_file_name: String::new(),
 
             file_protocol: Protocol::default(),
+
+            log: String::new(),
         };
+
+        logger::Logger::global().set_sender(app.channel.0.clone());
 
         app.current_serial_device = if !device.is_empty() {
             device
@@ -114,7 +123,7 @@ impl App {
         self.channel.0.send(message).unwrap();
     }
 
-    fn handle_update(&mut self, _ctx: &Context, frame: &mut Frame) {
+    fn handle_update(&mut self, ctx: &Context, frame: &mut Frame) {
         if let Ok(message) = self.channel.1.try_recv() {
             match message {
                 Message::Connect => self.serial.start(&self.current_serial_device, self.serial_config.clone()).unwrap(),
@@ -176,7 +185,10 @@ impl App {
                 },
                 Message::StopRecording => {
                     self.recording_started = false;
-                }
+                },
+                Message::Log(entry) => {
+                    entry.format(&mut self.log, ctx.style().visuals.dark_mode);
+                },
             }
         }
     }

@@ -3,8 +3,16 @@ mod serial;
 mod tui;
 mod gui;
 mod file_sender;
+mod logger;
+
+use logger::{Logger, LOGGER};
+use gui::App;
 
 fn main() {
+    let logger = Logger::new();
+    LOGGER.set(logger).unwrap();
+    logger::init();
+
     if let Err(e) = std::panic::catch_unwind(cli::Cli::run) {
         println!(
             "An unrecoverable error occured. Error details: {}",
