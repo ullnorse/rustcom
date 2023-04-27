@@ -30,7 +30,7 @@ impl App {
         self.create_menu_item(ui, "Copy", Message::Copy, Some("Ctrl+C"));
         self.create_menu_item(ui, "Paste", Message::Paste, Some("Ctrl+V"));
         ui.separator();
-        self.create_menu_item(ui, "Clear", Message::ClearReceiveText, Some("Ctrl+L"));
+        self.create_menu_item(ui, "Clear", Message::ClearTerminalText, Some("Ctrl+L"));
     }
 
     pub fn window_menu(&self, ui: &mut Ui) {

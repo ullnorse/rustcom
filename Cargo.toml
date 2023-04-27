@@ -26,6 +26,11 @@ arboard = "3.2.0"
 chrono = "0.4.24"
 dirs = "5.0.0"
 native-dialog = "0.6.3"
+join_str = "0.1.0"
+color-hex = "0.2.0"
+log = "0.4.17"
+env_logger = "0.10.0"
+astrolabe = "0.3.0"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1.12"
