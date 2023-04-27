@@ -1,10 +1,10 @@
-use flume::{Sender, unbounded};
+use flume::Sender;
 use join_str::jstr;
-use egui::{FontId, Color32, TextFormat, text::LayoutJob};
+use egui::{Color32};
 use color_hex::color_from_hex;
 use log::{Log, Record};
 use crate::gui::Message;
-use std::sync::{atomic::AtomicBool, Mutex, Once};
+use std::sync::Mutex;
 
 use once_cell::sync::{OnceCell};
 
@@ -15,11 +15,11 @@ macro_rules! hex_color {
     }};
 }
 
-pub const GREEN: Color32 = hex_color!("#528f24");
-pub const BLUE: Color32 = hex_color!("#38b6f1");
-pub const RED: Color32 = hex_color!("#F52331");
-pub const YELLOW: Color32 = hex_color!("#ffbc28");
-pub const ORANGE: Color32 = hex_color!("#ff953f");
+pub const _GREEN: Color32 = hex_color!("#528f24");
+pub const _BLUE: Color32 = hex_color!("#38b6f1");
+pub const _RED: Color32 = hex_color!("#F52331");
+pub const _YELLOW: Color32 = hex_color!("#ffbc28");
+pub const _ORANGE: Color32 = hex_color!("#ff953f");
 
 
 #[derive(Debug, Clone)]
@@ -31,11 +31,11 @@ pub struct Entry {
 }
 
 impl Entry {
-    pub fn format(&self, job: &mut String, dark_mode: bool) {
+    pub fn format(&self, job: &mut String, _dark_mode: bool) {
         job.push_str(&jstr!("[{&self.timestamp}] "));
         job.push_str(&jstr!("{&self.level} "));
         job.push_str(&self.args);
-        job.push_str("\n");
+        job.push('\n');
     }
 }
 

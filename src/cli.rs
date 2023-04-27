@@ -4,6 +4,7 @@ use serial2::{FlowControl, CharSize, Parity, StopBits};
 use crate::tui;
 use crate::serial::serial_config::SerialConfig;
 use crate::gui;
+use crate::logger::{Logger, LOGGER, self};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -82,6 +83,10 @@ impl Cli {
             flow_control: cli.flow_control.unwrap_or(FlowControl::None),
             stop_bits: cli.stop_bits.unwrap_or(StopBits::One),
         };
+
+        let logger = Logger::new();
+        LOGGER.set(logger).unwrap();
+        logger::init();
 
         if cli.no_gui {
             tui::run(&device, config).ok();

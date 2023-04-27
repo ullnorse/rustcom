@@ -1,11 +1,7 @@
 use super::Tab;
 
-use egui::{Frame, ScrollArea, Label};
-
-use crate::logger::Entry;
+use egui::{Frame, ScrollArea};
 use crate::gui::Message;
-
-use log::{info, error};
 
 pub struct LogTab;
 
@@ -20,20 +16,11 @@ impl Tab for LogTab {
                     .auto_shrink([false, true])
                     .stick_to_bottom(true)
                     .show(ui, |ui| {
-                        if ui.button("add log").clicked() {
-                            app.do_update(Message::Log(Entry {
-                                timestamp: "11:26".to_string(),
-                                level: "INFO".to_string(),
-                                target: "target".to_string(),
-                                args: "1 2 3 4".to_string()
-                            }));
+                        if ui.button("Clear").clicked() {
+                            app.do_update(Message::ClearLogText);
                         }
 
-                        if ui.button("log test").clicked() {
-                            error!("aleksa je car");
-                        }
-
-                        ui.add(Label::new(app.log.clone()));
+                        ui.label(app.log_text.clone());
 
                         ui.allocate_space(ui.available_size());
                     });

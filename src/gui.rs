@@ -6,13 +6,12 @@ mod status_bar;
 
 use crate::serial::Serial;
 use crate::serial::serial_config::SerialConfig;
-use log::info;
 use tabs::{Tab, default_ui};
 use widgets::line_end_picker::LineEnd;
 use widgets::file_protocol_picker::Protocol;
-use crate::logger::{Entry, Logger, LOGGER, self};
+use crate::logger::{Entry, Logger};
 
-use egui::{Style, Visuals, Context, CentralPanel, Key, KeyboardShortcut, Modifiers, text::LayoutJob};
+use egui::{Style, Visuals, Context, CentralPanel, Key, KeyboardShortcut, Modifiers};
 use eframe::{NativeOptions, IconData, CreationContext, Frame};
 use flume::{unbounded, Sender, Receiver};
 use egui_dock::{DockArea, Tree};
@@ -20,6 +19,7 @@ use parking_lot::RwLock;
 use arboard::Clipboard;
 use native_dialog::FileDialog;
 use anyhow::Result;
+use log::info;
 
 use std::io::Write;
 use std::ops::DerefMut;
@@ -34,7 +34,8 @@ pub enum Message {
     CloseAbout,
     Copy,
     Paste,
-    ClearReceiveText,
+    ClearTerminalText,
+    ClearLogText,
     Cut,
     SerialDataReceived(String),
     DataForTransmit(String),
@@ -51,7 +52,8 @@ pub struct App {
     tree: Arc<RwLock<Tree<Box<dyn Tab>>>>,
     pub serial_config: SerialConfig,
     pub serial: Serial,
-    pub receive_text: String,
+    pub terminal_text: String,
+    pub log_text: String,
     pub transmit_text: String,
 
     pub device_connected: bool,
@@ -72,7 +74,6 @@ pub struct App {
 
     pub file_protocol: Protocol,
 
-    pub log: String,
 }
 
 impl App {
@@ -82,7 +83,7 @@ impl App {
             tree: Arc::new(RwLock::new(default_ui())),
             serial: Serial::new(),
             serial_config: config,
-            receive_text: String::new(),
+            terminal_text: String::new(),
             transmit_text: String::new(),
 
             device_connected: false,
@@ -103,10 +104,10 @@ impl App {
 
             file_protocol: Protocol::default(),
 
-            log: String::new(),
+            log_text: String::new(),
         };
 
-        logger::Logger::global().set_sender(app.channel.0.clone());
+        Logger::global().set_sender(app.channel.0.clone());
 
         app.current_serial_device = if !device.is_empty() {
             device
@@ -126,8 +127,14 @@ impl App {
     fn handle_update(&mut self, ctx: &Context, frame: &mut Frame) {
         if let Ok(message) = self.channel.1.try_recv() {
             match message {
-                Message::Connect => self.serial.start(&self.current_serial_device, self.serial_config.clone()).unwrap(),
-                Message::Disconnect => self.serial.stop().unwrap(),
+                Message::Connect => {
+                    self.serial.start(&self.current_serial_device, self.serial_config.clone()).unwrap();
+                    info!("{} connected.", self.current_serial_device);
+                },
+                Message::Disconnect => {
+                    self.serial.stop().unwrap();
+                    info!("{} disconnected.", self.current_serial_device);
+                },
                 Message::DataForTransmit(text) => {
                     if self.device_connected {
                         self.tx_cnt += text.len() as u32;
@@ -136,10 +143,10 @@ impl App {
                 },
                 Message::SerialDataReceived(text) => {
                     self.rx_cnt += text.len() as u32;
-                    self.receive_text.push_str(&text);
+                    self.terminal_text.push_str(&text);
 
                     if self.timestamp {
-                        self.receive_text.push_str(&chrono::Local::now().format(" %H:%M:%S> ").to_string());
+                        self.terminal_text.push_str(&chrono::Local::now().format(" %H:%M:%S> ").to_string());
                     }
 
                     if self.recording_started {
@@ -150,22 +157,23 @@ impl App {
                             .open(self.log_file_name.clone())
                             .unwrap();
 
-                        f.write(text.as_bytes()).unwrap();
+                        f.write_all(text.as_bytes()).unwrap();
                     }
                 },
                 Message::ShowAbout => self.show_about = true,
                 Message::CloseAbout => self.show_about = false,
-                Message::Copy => Clipboard::new().unwrap().set_text(self.receive_text.clone()).unwrap(),
+                Message::Copy => Clipboard::new().unwrap().set_text(self.terminal_text.clone()).unwrap(),
                 Message::Cut => {
-                    Clipboard::new().unwrap().set_text(self.receive_text.clone()).unwrap();
-                    self.receive_text.clear();
+                    Clipboard::new().unwrap().set_text(self.terminal_text.clone()).unwrap();
+                    self.terminal_text.clear();
                 },
                 Message::Paste => {
                     if let Ok(text) = Clipboard::new().unwrap().get_text() {
                         self.transmit_text.push_str(&text);
                     }
                 },
-                Message::ClearReceiveText => self.receive_text.clear(),
+                Message::ClearTerminalText => self.terminal_text.clear(),
+                Message::ClearLogText => self.log_text.clear(),
                 Message::CloseApplication => frame.close(),
                 Message::SetDefaultUi => *self.tree.write() = default_ui(),
                 Message::RefreshSerialDevices => {
@@ -187,7 +195,7 @@ impl App {
                     self.recording_started = false;
                 },
                 Message::Log(entry) => {
-                    entry.format(&mut self.log, ctx.style().visuals.dark_mode);
+                    entry.format(&mut self.log_text, ctx.style().visuals.dark_mode);
                 },
             }
         }
@@ -210,7 +218,7 @@ impl App {
             (Message::Copy, KeyboardShortcut::new(Modifiers::CTRL, Key::C)),
             (Message::Cut, KeyboardShortcut::new(Modifiers::CTRL, Key::X)),
             (Message::Paste, KeyboardShortcut::new(Modifiers::CTRL, Key::V)),
-            (Message::ClearReceiveText, KeyboardShortcut::new(Modifiers::CTRL, Key::L)),
+            (Message::ClearTerminalText, KeyboardShortcut::new(Modifiers::CTRL, Key::L)),
         ];
 
         for (message, shortcut) in &shortcuts {

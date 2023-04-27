@@ -25,14 +25,12 @@ impl Tab for TerminalTab {
                 if ui.button("Record").clicked() {
                     app.do_update(Message::StartRecording);
                 }
-            } else {
-                if ui.button("Stop recording").clicked() {
-                    app.do_update(Message::StopRecording);
-                }
+            } else if ui.button("Stop recording").clicked() {
+                app.do_update(Message::StopRecording);
             }
 
             if ui.button("Clear").clicked() {
-                app.do_update(Message::ClearReceiveText);
+                app.do_update(Message::ClearTerminalText);
             }
 
             ui.checkbox(&mut app.timestamp, "Time").on_hover_text("Show time in receive box");
@@ -60,7 +58,7 @@ impl Tab for TerminalTab {
                     .stick_to_bottom(app.lock_scrolling)
                     .show(ui, |ui| {
                         ui.with_layout(Layout::left_to_right(Align::Center).with_cross_justify(true), |ui| {
-                            ui.add_sized(ui.available_size(), TextEdit::multiline(&mut app.receive_text).interactive(false))
+                            ui.add_sized(ui.available_size(), TextEdit::multiline(&mut app.terminal_text).interactive(false))
                         });
                     });
             });
