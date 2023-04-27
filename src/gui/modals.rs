@@ -14,7 +14,7 @@ impl App {
                     ui.spacing_mut().item_spacing.y = 8.0;
                     ui.vertical_centered(|ui| {
                         ui.label(RichText::new("rustcom").color(ui.style().visuals.widgets.inactive.bg_fill).heading());
-                        ui.label("© 2023 Aleksa Jonić - TODO: insert license");
+                        ui.label("© 2023 Aleksa Jonić - MIT OR Apache-2.0");
                         ui.label(concat!("Version ", env!("CARGO_PKG_VERSION")));
                     });
                     egui::Grid::new("about_box").num_columns(2).show(ui, |ui| {
