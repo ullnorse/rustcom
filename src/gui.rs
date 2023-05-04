@@ -88,7 +88,7 @@ impl App {
 
             device_connected: false,
             current_serial_device: String::new(),
-            serial_devices: Serial::available_ports(),
+            serial_devices: Serial::available_ports().unwrap_or_default(),
 
             line_end: LineEnd::default(),
             timestamp: false,
@@ -128,12 +128,20 @@ impl App {
         if let Ok(message) = self.channel.1.try_recv() {
             match message {
                 Message::Connect => {
-                    self.serial.start(&self.current_serial_device, self.serial_config.clone()).unwrap();
-                    info!("{} connected.", self.current_serial_device);
+                    if self.serial.start(&self.current_serial_device, self.serial_config.clone()).is_ok() {
+                        info!("{} connected.", self.current_serial_device);
+                        self.device_connected = true;
+                    } else {
+                        info!("Couldn't connect to {}", self.current_serial_device);
+                    }
                 },
                 Message::Disconnect => {
-                    self.serial.stop().unwrap();
-                    info!("{} disconnected.", self.current_serial_device);
+                    if self.serial.stop().is_ok() {
+                        info!("{} disconnected.", self.current_serial_device);
+                        self.device_connected = false;
+                    } else {
+                        info!("Couldn't disconnect from {}", self.current_serial_device);
+                    }
                 },
                 Message::DataForTransmit(text) => {
                     if self.device_connected {
@@ -177,8 +185,8 @@ impl App {
                 Message::CloseApplication => frame.close(),
                 Message::SetDefaultUi => *self.tree.write() = default_ui(),
                 Message::RefreshSerialDevices => {
-                    self.serial_devices = Serial::available_ports();
-                    if !self.serial_devices.is_empty() {
+                    if let Ok(serial_devices) = Serial::available_ports() {
+                        self.serial_devices = serial_devices;
                         self.current_serial_device = self.serial_devices[0].clone();
                     }
                 },

@@ -11,14 +11,10 @@ pub struct TerminalTab;
 impl Tab for TerminalTab {
     fn show_ui(&self, app: &mut App, ui: &mut Ui) {
         ui.horizontal(|ui| {
-            if app.device_connected {
-                if ui.button("Disconnect").clicked() {
-                    app.do_update(Message::Disconnect);
-                    app.device_connected = false;
-                }
+            if app.device_connected && ui.button("Disconnect").clicked(){
+                app.do_update(Message::Disconnect);
             } else if ui.button("Connect").clicked() {
                 app.do_update(Message::Connect);
-                app.device_connected = true;
             }
 
             if !app.recording_started {

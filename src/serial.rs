@@ -31,12 +31,10 @@ impl Serial {
         Self::default()
     }
 
-    pub fn available_ports() -> Vec<String> {
-        serialport::available_ports()
-            .unwrap()
-            .iter()
-            .map(|port| port.port_name.clone())
-            .collect()
+    pub fn available_ports() -> Result<Vec<String>> {
+        let ports = serialport::available_ports()?;
+        let names: Vec<String> = ports.iter().map(|port| port.port_name.clone()).collect();
+        Ok(names)
     }
 
     pub fn start(&self, port_name: &str, config: SerialConfig) -> Result<()> {
