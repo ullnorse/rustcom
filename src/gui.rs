@@ -17,7 +17,6 @@ use flume::{unbounded, Sender, Receiver};
 use egui_dock::{DockArea, Tree};
 use parking_lot::RwLock;
 use arboard::Clipboard;
-use native_dialog::FileDialog;
 use anyhow::Result;
 use log::info;
 
@@ -150,12 +149,12 @@ impl App {
                     }
                 },
                 Message::SerialDataReceived(text) => {
-                    self.rx_cnt += text.len() as u32;
-                    self.terminal_text.push_str(&text);
-
                     if self.timestamp {
                         self.terminal_text.push_str(&chrono::Local::now().format(" %H:%M:%S> ").to_string());
                     }
+
+                    self.rx_cnt += text.len() as u32;
+                    self.terminal_text.push_str(&text);
 
                     if self.recording_started {
                         let mut f = OpenOptions::new()
@@ -191,9 +190,9 @@ impl App {
                     }
                 },
                 Message::StartRecording => {
-                    if let Ok(Some(path)) = FileDialog::new()
-                        .set_location(dirs::home_dir().unwrap().to_str().unwrap())
-                        .show_open_single_file()
+                    if let Some(path) = rfd::FileDialog::new()
+                        .set_directory(dirs::home_dir().unwrap())
+                        .pick_file()
                     {
                         self.log_file_name = path.to_string_lossy().to_string();
                         self.recording_started = true;
