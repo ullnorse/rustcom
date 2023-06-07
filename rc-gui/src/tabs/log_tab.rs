@@ -1,12 +1,12 @@
 use super::Tab;
 
-use egui::{Frame, ScrollArea};
-use crate::gui::Message;
+use eframe::egui::{self, Frame, ScrollArea};
+use crate::Message;
 
 pub struct LogTab;
 
 impl Tab for LogTab {
-    fn show_ui(&self, app: &mut crate::gui::App, ui: &mut egui::Ui) {
+    fn show_ui(&self, app: &mut crate::App, ui: &mut egui::Ui) {
         Frame::none()
             .fill(ui.style().visuals.extreme_bg_color)
             .inner_margin(-2.0)

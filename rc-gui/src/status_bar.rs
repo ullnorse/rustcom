@@ -1,5 +1,5 @@
 use super::App;
-use egui::{Context, TopBottomPanel, TextBuffer, widgets::global_dark_light_mode_switch};
+use eframe::egui::{Context, TopBottomPanel, TextBuffer, widgets::global_dark_light_mode_switch};
 use eframe::Frame;
 
 impl App {

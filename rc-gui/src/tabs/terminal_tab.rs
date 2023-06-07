@@ -1,8 +1,8 @@
-use egui::Ui;
+use eframe::egui::{self, Ui};
 use egui::{ScrollArea, TextEdit, Layout, Align};
-use crate::gui::Message;
-use crate::gui::widgets::line_end_picker::LineEndPicker;
-use crate::gui::widgets::file_protocol_picker::FileProtocolPicker;
+use crate::Message;
+use crate::widgets::line_end_picker::LineEndPicker;
+use crate::widgets::file_protocol_picker::FileProtocolPicker;
 use super::App;
 use super::Tab;
 

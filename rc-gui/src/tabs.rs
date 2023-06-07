@@ -4,7 +4,7 @@ pub mod log_tab;
 
 use egui_dock::{TabViewer, Tree};
 use super::App;
-use egui::Ui;
+use eframe::egui::{self, Ui};
 
 use settings_tab::SettingsTab;
 use terminal_tab::TerminalTab;

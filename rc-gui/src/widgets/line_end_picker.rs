@@ -1,4 +1,4 @@
-use egui::{ComboBox, Response, Widget};
+use eframe::egui::{self, ComboBox, Response, Widget};
 
 #[derive(PartialEq, Eq, Copy, Clone, Default)]
 pub enum LineEnd {

@@ -1,0 +1,21 @@
+[package]
+name = "rc-gui"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1"
+eframe = { version = "0.22.0", features = ["persistence"]}
+egui_dock = "0.6.1"
+flume = "0.10.14"
+parking_lot = "0.12.1"
+arboard = "3.2.0"
+serial2 = "0.1.7"
+chrono = "0.4.24"
+rfd = "0.11.4"
+dirs = "5.0.0"
+open = "4.0.1"
+
+rc-core ={ path = "../rc-core" }

@@ -1,5 +1,5 @@
 use super::{App, Message};
-use egui::{Context, TopBottomPanel, Ui};
+use eframe::egui::{Context, TopBottomPanel, Ui};
 
 impl App {
     fn create_menu_item(&self, ui: &mut Ui, label: &str, message: Message, shortcut: Option<&str>) {

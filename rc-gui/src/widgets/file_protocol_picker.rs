@@ -1,4 +1,4 @@
-use egui::{ComboBox, Response, Widget};
+use eframe::egui::{self, ComboBox, Response, Widget};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Default)]
 pub enum Protocol {

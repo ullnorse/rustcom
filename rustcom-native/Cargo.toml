@@ -1,0 +1,16 @@
+[package]
+name = "rustcom-native"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1"
+
+rc-core = { path = "../rc-core" }
+rc-tui = { path = "../rc-tui" }
+rc-gui = { path = "../rc-gui" }
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1.12"

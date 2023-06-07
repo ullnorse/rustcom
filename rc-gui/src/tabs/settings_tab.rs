@@ -1,6 +1,6 @@
-use egui::{ComboBox, Grid, TextBuffer, Ui};
+use eframe::egui::{ComboBox, Grid, TextBuffer, Ui};
 use serial2::{Parity, CharSize, FlowControl, StopBits, COMMON_BAUD_RATES};
-use crate::gui::Message;
+use crate::Message;
 use super::App;
 use super::Tab;
 

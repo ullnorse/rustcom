@@ -1,29 +1,26 @@
-pub mod widgets;
-pub mod menu_bar;
-pub mod modals;
-pub mod tabs;
-mod status_bar;
+use anyhow::Result;
+use eframe::{egui::{self, Style, Visuals, Context, KeyboardShortcut, Modifiers, Key, CentralPanel}, NativeOptions, CreationContext, Frame};
+use egui_dock::{Tree, DockArea};
+use flume::{unbounded, Sender, Receiver};
+use parking_lot::RwLock;
+use arboard::Clipboard;
 
-use crate::serial::Serial;
-use crate::serial::serial_config::SerialConfig;
+use std::io::Write;
+use std::sync::Arc;
+use std::fs::OpenOptions;
+use std::ops::DerefMut;
+
+mod tabs;
+mod widgets;
+mod menu_bar;
+mod status_bar;
+mod modals;
+
 use tabs::{Tab, default_ui};
 use widgets::line_end_picker::LineEnd;
 use widgets::file_protocol_picker::Protocol;
-use crate::logger::{Entry, Logger};
 
-use egui::{Style, Visuals, Context, CentralPanel, Key, KeyboardShortcut, Modifiers};
-use eframe::{NativeOptions, IconData, CreationContext, Frame};
-use flume::{unbounded, Sender, Receiver};
-use egui_dock::{DockArea, Tree};
-use parking_lot::RwLock;
-use arboard::Clipboard;
-use anyhow::Result;
-use log::info;
-
-use std::io::Write;
-use std::ops::DerefMut;
-use std::sync::Arc;
-use std::fs::OpenOptions;
+use rc_core::serial::{SerialConfig, Serial};
 
 #[derive(Clone)]
 pub enum Message {
@@ -43,7 +40,7 @@ pub enum Message {
     RefreshSerialDevices,
     StartRecording,
     StopRecording,
-    Log(Entry),
+    // Log(Entry),
 }
 
 pub struct App {
@@ -106,7 +103,7 @@ impl App {
             log_text: String::new(),
         };
 
-        Logger::global().set_sender(app.channel.0.clone());
+        // Logger::global().set_sender(app.channel.0.clone());
 
         app.current_serial_device = if !device.is_empty() {
             device
@@ -123,23 +120,23 @@ impl App {
         self.channel.0.send(message).unwrap();
     }
 
-    fn handle_update(&mut self, ctx: &Context, frame: &mut Frame) {
+    fn handle_update(&mut self, _ctx: &Context, frame: &mut Frame) {
         if let Ok(message) = self.channel.1.try_recv() {
             match message {
                 Message::Connect => {
                     if self.serial.start(&self.current_serial_device, self.serial_config.clone()).is_ok() {
-                        info!("{} connected.", self.current_serial_device);
+                        // info!("{} connected.", self.current_serial_device);
                         self.device_connected = true;
                     } else {
-                        info!("Couldn't connect to {}", self.current_serial_device);
+                        // info!("Couldn't connect to {}", self.current_serial_device);
                     }
                 },
                 Message::Disconnect => {
                     if self.serial.stop().is_ok() {
-                        info!("{} disconnected.", self.current_serial_device);
+                        // info!("{} disconnected.", self.current_serial_device);
                         self.device_connected = false;
                     } else {
-                        info!("Couldn't disconnect from {}", self.current_serial_device);
+                        // info!("Couldn't disconnect from {}", self.current_serial_device);
                     }
                 },
                 Message::DataForTransmit(text) => {
@@ -201,9 +198,9 @@ impl App {
                 Message::StopRecording => {
                     self.recording_started = false;
                 },
-                Message::Log(entry) => {
-                    entry.format(&mut self.log_text, ctx.style().visuals.dark_mode);
-                },
+                // Message::Log(entry) => {
+                //     entry.format(&mut self.log_text, ctx.style().visuals.dark_mode);
+                // },
             }
         }
     }
@@ -244,7 +241,7 @@ impl App {
 }
 
 impl eframe::App for App {
-    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
+    fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
         self.handle_update(ctx, frame);
         self.render_menu_bar(ctx);
         self.render_status_bar(ctx, frame);
@@ -260,23 +257,27 @@ impl eframe::App for App {
             DockArea::new(self.tree.clone().write().deref_mut()).show_inside(ui, self);
         });
     }
+
+    fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
+
+    fn on_close_event(&mut self) -> bool {
+        true
+    }
+
+    fn persist_native_window(&self) -> bool {
+        true
+    }
+
+    fn persist_egui_memory(&self) -> bool {
+        true
+    }
 }
 
-pub fn run(device: String, config: SerialConfig) -> Result<(), eframe::Error> {
-    let icon_data = Some(IconData {
-        height: 256,
-        width: 256,
-        rgba: image::load_from_memory(include_bytes!("../assets/icon.png"))
-            .unwrap()
-            .to_rgba8()
-            .into_vec(),
-    });
-
+pub fn run(device: String, config: SerialConfig) -> Result<()> {
     let min_window_size = Some(egui::Vec2::new(225.0, 225.0));
     let initial_window_size = Some(egui::Vec2::new(1200.0, 800.0));
 
     let options = NativeOptions {
-        icon_data,
         min_window_size,
         initial_window_size,
         ..Default::default()
@@ -291,5 +292,7 @@ pub fn run(device: String, config: SerialConfig) -> Result<(), eframe::Error> {
             cc.egui_ctx.set_style(style);
             Box::new(App::new(cc, device, config))
         })
-    )
+    ).ok();
+
+    Ok(())
 }

@@ -1,5 +1,5 @@
 use super::App;
-use egui::{RichText, Layout, Vec2, Align, Align2, Frame};
+use eframe::egui::{self, RichText, Layout, Vec2, Align, Align2, Frame};
 use super::Message;
 
 impl App {
