@@ -2,6 +2,8 @@ use anyhow::Result;
 use eframe::{egui::{self, Style, Visuals, Context, KeyboardShortcut, Modifiers, Key, CentralPanel}, NativeOptions, CreationContext, Frame};
 use egui_dock::{Tree, DockArea};
 use flume::{unbounded, Sender, Receiver};
+use log::info;
+use logger::{Entry, Logger, LOGGER};
 use parking_lot::RwLock;
 use arboard::Clipboard;
 
@@ -15,6 +17,7 @@ mod widgets;
 mod menu_bar;
 mod status_bar;
 mod modals;
+mod logger;
 
 use tabs::{Tab, default_ui};
 use widgets::line_end_picker::LineEnd;
@@ -40,7 +43,7 @@ pub enum Message {
     RefreshSerialDevices,
     StartRecording,
     StopRecording,
-    // Log(Entry),
+    Log(Entry),
 }
 
 pub struct App {
@@ -103,7 +106,7 @@ impl App {
             log_text: String::new(),
         };
 
-        // Logger::global().set_sender(app.channel.0.clone());
+        Logger::global().set_sender(app.channel.0.clone());
 
         app.current_serial_device = if !device.is_empty() {
             device
@@ -125,18 +128,18 @@ impl App {
             match message {
                 Message::Connect => {
                     if self.serial.start(&self.current_serial_device, self.serial_config.clone()).is_ok() {
-                        // info!("{} connected.", self.current_serial_device);
+                        info!("{} connected.", self.current_serial_device);
                         self.device_connected = true;
                     } else {
-                        // info!("Couldn't connect to {}", self.current_serial_device);
+                        info!("Couldn't connect to {}", self.current_serial_device);
                     }
                 },
                 Message::Disconnect => {
                     if self.serial.stop().is_ok() {
-                        // info!("{} disconnected.", self.current_serial_device);
+                        info!("{} disconnected.", self.current_serial_device);
                         self.device_connected = false;
                     } else {
-                        // info!("Couldn't disconnect from {}", self.current_serial_device);
+                        info!("Couldn't disconnect from {}", self.current_serial_device);
                     }
                 },
                 Message::DataForTransmit(text) => {
@@ -198,9 +201,9 @@ impl App {
                 Message::StopRecording => {
                     self.recording_started = false;
                 },
-                // Message::Log(entry) => {
-                //     entry.format(&mut self.log_text, ctx.style().visuals.dark_mode);
-                // },
+                Message::Log(entry) => {
+                    entry.format(&mut self.log_text);
+                },
             }
         }
     }
@@ -287,6 +290,10 @@ pub fn run(device: String, config: SerialConfig) -> Result<()> {
         visuals: Visuals::light(),
         ..Style::default()
     };
+
+    let logger = Logger::new();
+    LOGGER.set(logger).unwrap();
+    logger::init();
 
     eframe::run_native("rustcom", options, Box::new(|cc| {
             cc.egui_ctx.set_style(style);

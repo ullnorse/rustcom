@@ -17,8 +17,8 @@ pub trait Tab {
 
 pub fn default_ui() -> Tree<Box<dyn Tab>> {
     let mut tree: Tree<Box<dyn Tab>> = Tree::new(vec![Box::new(TerminalTab)]);
-    let [main, side] = tree.split_right(0.into(), 0.8, vec![Box::new(SettingsTab)]);
-    let [_side_top, _side_bottom] = tree.split_below(side, 0.6, vec![Box::new(LogTab)]);
+    let [main, side] = tree.split_right(0.into(), 0.75, vec![Box::new(SettingsTab)]);
+    let [_side_top, _side_bottom] = tree.split_below(side, 0.3, vec![Box::new(LogTab)]);
     tree.set_focused_node(main);
     tree
 }

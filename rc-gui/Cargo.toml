@@ -7,15 +7,18 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1"
-eframe = { version = "0.22.0", features = ["persistence"]}
+eframe = { version = "0.22.0", features = []}
 egui_dock = "0.6.1"
 flume = "0.10.14"
 parking_lot = "0.12.1"
 arboard = "3.2.0"
-serial2 = "0.1.7"
-chrono = "0.4.24"
+serial2 = "0.2.1"
+chrono = "0.4"
 rfd = "0.11.4"
-dirs = "5.0.0"
-open = "4.0.1"
+dirs = "5"
+open = "5"
+join_str = "0.1.0"
+log = "0.4"
+env_logger = "0.10"
 
 rc-core ={ path = "../rc-core" }

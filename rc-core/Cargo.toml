@@ -8,6 +8,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1"
 clap = {version = "4.1.8", features = ["derive"]}
-serial2 = "0.1.7"
+serial2 = "0.2.1"
 serialport = "4.2.0"
 flume = "0.10.14"

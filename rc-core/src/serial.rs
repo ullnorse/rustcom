@@ -135,7 +135,7 @@ impl Serial {
     }
 
     fn clear_buffer(port: &mut SerialPort) {
-        let mut buf = [0u8; 10];
+        let mut buf = [0u8; 1];
 
         while port.read_exact(&mut buf).is_ok() {
 

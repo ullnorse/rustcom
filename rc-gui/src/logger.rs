@@ -1,26 +1,9 @@
 use flume::Sender;
 use join_str::jstr;
-use egui::{Color32};
-use color_hex::color_from_hex;
 use log::{Log, Record};
-use crate::gui::Message;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
-use once_cell::sync::{OnceCell};
-
-macro_rules! hex_color {
-    ($hex:expr) => {{
-        let _arr = color_from_hex!($hex);
-        Color32::from_rgb(_arr[0], _arr[1], _arr[2])
-    }};
-}
-
-pub const _GREEN: Color32 = hex_color!("#528f24");
-pub const _BLUE: Color32 = hex_color!("#38b6f1");
-pub const _RED: Color32 = hex_color!("#F52331");
-pub const _YELLOW: Color32 = hex_color!("#ffbc28");
-pub const _ORANGE: Color32 = hex_color!("#ff953f");
-
+use crate::Message;
 
 #[derive(Debug, Clone)]
 pub struct Entry {
@@ -31,7 +14,7 @@ pub struct Entry {
 }
 
 impl Entry {
-    pub fn format(&self, job: &mut String, _dark_mode: bool) {
+    pub fn format(&self, job: &mut String) {
         job.push_str(&jstr!("[{&self.timestamp}] "));
         job.push_str(&jstr!("{&self.level} "));
         job.push_str(&self.args);
@@ -42,8 +25,7 @@ impl Entry {
 impl From<&Record<'_>> for Entry {
     fn from(record: &Record) -> Self {
         Self {
-            // timestamp: astrolabe::DateTime::now().format("y-MM-dd h:mm:ss"),
-            timestamp: astrolabe::DateTime::now().format("hh:mm:ss"),
+            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
             level: record.level().to_string(),
             target: record.target().to_string(),
             args: format!("{:?}", record.args()),
@@ -51,7 +33,7 @@ impl From<&Record<'_>> for Entry {
     }
 }
 
-pub static LOGGER: OnceCell<Logger> = OnceCell::new();
+pub static LOGGER: OnceLock<Logger> = OnceLock::new();
 
 pub fn init() {
     log::set_logger(Logger::global()).unwrap();
@@ -62,7 +44,7 @@ pub fn init() {
 #[derive(Debug)]
 pub struct Logger {
     inner: env_logger::Logger,
-    sender: OnceCell<Sender<Message>>,
+    sender: OnceLock<Sender<Message>>,
     queue: Mutex<Vec<Entry>>,
 }
 
@@ -74,7 +56,7 @@ impl Logger {
     pub fn new() -> Self {
         Self {
             inner: env_logger::builder().build(),
-            sender: OnceCell::new(),
+            sender: OnceLock::new(),
             queue: Mutex::new(Vec::new()),
         }
     }
@@ -106,7 +88,7 @@ impl Log for Logger {
         let entry: Entry = record.into();
 
         if let Some(sender) = self.sender.get() {
-            sender.send(Message::Log(entry)).unwrap();
+            sender.send(Message::Log(entry)).ok();
         }
 
         if self.enabled(record.metadata()) {
