@@ -1,4 +1,4 @@
-use egui::{ComboBox, Response, Widget};
+use eframe::egui::{self, ComboBox, Response, Widget};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Default)]
 pub enum Protocol {
@@ -23,6 +23,7 @@ impl<'a> FileProtocolPicker<'a> {
     const PROTOCOLS: [Protocol; 3] = [Protocol::Plain, Protocol::XModem, Protocol::YModem];
     const ID: &'static str = "protocol";
 
+    #[allow(dead_code)]
     pub fn new(width: f32, protocol: &'a mut Protocol) -> Self {
         Self {
             width,

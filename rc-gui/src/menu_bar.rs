@@ -1,5 +1,5 @@
 use super::{App, Message};
-use egui::{Context, TopBottomPanel, Ui};
+use eframe::egui::{Context, TopBottomPanel, Ui};
 
 impl App {
     fn create_menu_item(&self, ui: &mut Ui, label: &str, message: Message, shortcut: Option<&str>) {
@@ -9,7 +9,7 @@ impl App {
         }
     }
 
-    pub fn render_menu(&mut self, ctx: &Context) {
+    pub fn render_menu_bar(&mut self, ctx: &Context) {
         TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             ui.style_mut().visuals.button_frame = false;
             ui.horizontal(|ui| {
@@ -30,7 +30,7 @@ impl App {
         self.create_menu_item(ui, "Copy", Message::Copy, Some("Ctrl+C"));
         self.create_menu_item(ui, "Paste", Message::Paste, Some("Ctrl+V"));
         ui.separator();
-        self.create_menu_item(ui, "Clear", Message::ClearReceiveText, Some("Ctrl+L"));
+        self.create_menu_item(ui, "Clear", Message::ClearTerminalText, Some("Ctrl+L"));
     }
 
     pub fn window_menu(&self, ui: &mut Ui) {

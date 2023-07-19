@@ -1,10 +1,13 @@
-use std::path::PathBuf;
+use anyhow::Result;
 use clap::Parser;
 use serial2::{FlowControl, CharSize, Parity, StopBits};
-use super::serial::serial_config::SerialConfig;
-use super::gui;
-use super::tui;
 
+use crate::serial::SerialConfig;
+
+pub enum AppType {
+    Tui,
+    Gui,
+}
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -29,9 +32,6 @@ pub struct Cli {
 
     #[arg(short, long, value_parser = possible_stop_bits, help = "Possible values: 1 (default), 2")]
     stop_bits: Option<StopBits>,
-
-    #[arg(long = "config", help = "Configuration file to use")]
-    configuration: Option<PathBuf>,
 }
 
 fn possible_char_size(s: &str) -> Result<CharSize, String> {
@@ -70,25 +70,22 @@ fn possible_stop_bits(s: &str) -> Result<StopBits, String> {
     }
 }
 
+pub fn run() -> Result<(AppType, String, SerialConfig)> {
+    let cli = Cli::parse();
 
-impl Cli {
-    pub fn run() {
-        let cli = Cli::parse();
+    let device = cli.device.unwrap_or_default();
 
-        let device = cli.device.unwrap_or_default();
+    let config = SerialConfig {
+        baudrate: cli.baudrate.unwrap_or(115200),
+        char_size: cli.char_size.unwrap_or(CharSize::Bits8),
+        parity: cli.parity.unwrap_or(Parity::None),
+        flow_control: cli.flow_control.unwrap_or(FlowControl::None),
+        stop_bits: cli.stop_bits.unwrap_or(StopBits::One),
+    };
 
-        let config = SerialConfig {
-            baudrate: cli.baudrate.unwrap_or(115200),
-            char_size: cli.char_size.unwrap_or(CharSize::Bits8),
-            parity: cli.parity.unwrap_or(Parity::None),
-            flow_control: cli.flow_control.unwrap_or(FlowControl::None),
-            stop_bits: cli.stop_bits.unwrap_or(StopBits::One),
-        };
-
-        if cli.no_gui {
-            tui::run(&device, config);
-        } else {
-            gui::run(device, config);
-        }
+    if cli.no_gui {
+        return Ok((AppType::Tui, device, config))
     }
+
+    Ok((AppType::Gui, device, config))
 }
