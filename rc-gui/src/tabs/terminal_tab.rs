@@ -8,6 +8,10 @@ use super::Tab;
 
 pub struct TerminalTab;
 
+fn selectable_text(ui: &mut egui::Ui, mut text: &str) {
+    ui.add_sized(ui.available_size(), TextEdit::multiline(&mut text));
+}
+
 impl Tab for TerminalTab {
     fn show_ui(&self, app: &mut App, ui: &mut Ui) {
         ui.horizontal(|ui| {
@@ -56,7 +60,8 @@ impl Tab for TerminalTab {
                     .stick_to_bottom(app.lock_scrolling)
                     .show(ui, |ui| {
                         ui.with_layout(Layout::left_to_right(Align::Center).with_cross_justify(true), |ui| {
-                            ui.add_sized(ui.available_size(), TextEdit::multiline(&mut app.terminal_text).interactive(false))
+                            // ui.add_sized(ui.available_size(), TextEdit::multiline(&mut app.terminal_text).interactive(false))
+                            selectable_text(ui, &app.terminal_text)
                         });
                     });
             });
