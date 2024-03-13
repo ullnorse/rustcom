@@ -186,8 +186,12 @@ impl App {
                 Message::RefreshSerialDevices => {
                     if let Ok(serial_devices) = Serial::available_ports() {
                         self.serial_devices = serial_devices;
-                        self.current_serial_device = self.serial_devices[0].clone();
+
+                        if !self.serial_devices.is_empty() {
+                            self.current_serial_device = self.serial_devices[0].clone();
+                        }
                     }
+
                 },
                 Message::StartRecording => {
                     if let Some(path) = rfd::FileDialog::new()
