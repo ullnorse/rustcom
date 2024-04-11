@@ -1,9 +1,8 @@
 use super::App;
 use eframe::egui::{Context, TopBottomPanel, TextBuffer, widgets::global_dark_light_mode_switch};
-use eframe::Frame;
 
 impl App {
-    pub fn render_status_bar(&mut self, ctx: &Context, _frame: &mut Frame) {
+    pub fn render_status_bar(&mut self, ctx: &Context) {
         TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 global_dark_light_mode_switch(ui);
@@ -24,8 +23,8 @@ impl App {
                     self.tx_cnt,
                     self.rx_cnt,
 
-                    if self.recording_started {
-                        format!("Logging to: {}", self.log_file_name)
+                    if false {
+                        format!("Logging to: {}", "")
                     } else {
                         String::new()
                     }

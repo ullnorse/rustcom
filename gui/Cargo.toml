@@ -1,0 +1,24 @@
+[package]
+name = "gui"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+base.workspace = true
+anyhow.workspace = true
+
+eframe = { version = "0.27", features = []}
+egui_dock = "0.12"
+flume = "0.11"
+parking_lot = "0.12"
+arboard = "3.3"
+serial2 = "0.2"
+chrono = "0.4"
+rfd = "0.14"
+dirs = "5"
+open = "5"
+join_str = "0.1"
+log = "0.4"
+env_logger = "0.11"

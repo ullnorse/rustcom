@@ -38,8 +38,8 @@ impl IntoSettings for SerialConfig {
 pub struct Serial {
     transmit_state_channel: (Sender<()>, Receiver<()>),
     receive_state_channel: (Sender<()>, Receiver<()>),
-    received_data_channel: (Sender<String>, Receiver<String>),
-    data_for_sending_channel: (Sender<String>, Receiver<String>),
+    data_channel: (Sender<String>, Receiver<String>),
+    output_channel: (Sender<String>, Receiver<String>),
 }
 
 impl Default for Serial {
@@ -47,8 +47,8 @@ impl Default for Serial {
         Self {
             transmit_state_channel: unbounded(),
             receive_state_channel: unbounded(),
-            received_data_channel: unbounded(),
-            data_for_sending_channel: unbounded(),
+            data_channel: unbounded(),
+            output_channel: unbounded(),
         }
     }
 }
@@ -68,8 +68,8 @@ impl Serial {
         let (_, transmit_state_channel) = self.transmit_state_channel.clone();
         let (_, receive_state_channel) = self.receive_state_channel.clone();
 
-        let (received_data_sender, _) = self.received_data_channel.clone();
-        let (_, data_for_sending_receiver) = self.data_for_sending_channel.clone();
+        let (data_sender, _) = self.data_channel.clone();
+        let (_, output_receiver) = self.output_channel.clone();
 
         let mut port = SerialPort::open(port_name, config)?;
         port.set_read_timeout(std::time::Duration::from_millis(10))?;
@@ -92,7 +92,7 @@ impl Serial {
                 match receive_port.read(buf.as_mut_slice()) {
                     Ok(read_bytes) => {
                         let s = String::from_utf8_lossy(&buf[..read_bytes]);
-                        received_data_sender.send(s.to_string()).ok();
+                        data_sender.send(s.to_string()).ok();
                     },
                     Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => (),
                     Err(e) => eprintln!("{e:?}"),
@@ -108,7 +108,7 @@ impl Serial {
                     break;
                 }
 
-                if let Ok(s) = data_for_sending_receiver.recv_timeout(std::time::Duration::from_millis(100)) {
+                if let Ok(s) = output_receiver.recv_timeout(std::time::Duration::from_millis(100)) {
                     if let Ok(_size) = transmit_port.write(s.as_bytes()) {
 
                     }
@@ -119,19 +119,19 @@ impl Serial {
         Ok(())
     }
 
-    pub fn stop(&mut self) -> Result<()> {
-        self.stop_threads()?;
-        self.clear_channels();
+    pub fn stop(&self) -> Result<()> {
+        self.transmit_state_channel.0.send(())?;
+        self.receive_state_channel.0.send(())?;
 
         Ok(())
     }
 
     pub fn send(&self, data: &str) {
-        self.data_for_sending_channel.0.send(data.to_string()).unwrap();
+        self.output_channel.0.send(data.to_string()).unwrap();
     }
 
     pub fn try_recv(&self) -> Option<String> {
-        self.received_data_channel.1.try_recv().ok()
+        self.data_channel.1.try_recv().ok()
     }
 
     fn clear_buffer(port: &mut SerialPort) {
@@ -141,17 +141,4 @@ impl Serial {
 
         }
     }
-
-    fn clear_channels(&mut self) {
-        self.received_data_channel = unbounded();
-        self.data_for_sending_channel = unbounded();
-    }
-
-    fn stop_threads(&self) -> Result<()> {
-        self.receive_state_channel.0.send(())?;
-        self.transmit_state_channel.0.send(())?;
-
-        Ok(())
-    }
 }
-

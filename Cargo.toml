@@ -1,7 +1,17 @@
 [workspace]
 members = [
-    "rc-tui",
-    "rc-gui",
-    "rc-core",
-    "rustcom-native"
+    "base",
+    "gui",
+    "tui",
+    "rustcom"
 ]
+
+resolver = "2"
+
+[workspace.dependencies]
+base = { path = "base" }
+gui = { path = "gui" }
+tui = { path = "tui" }
+rustcom = { path = "rustcom" }
+
+anyhow = "1.0"
