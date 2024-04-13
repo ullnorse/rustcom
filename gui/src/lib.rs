@@ -123,6 +123,7 @@ impl App {
 
                     self.rx_cnt += text.len() as u32;
                     self.terminal_text.push_str(&text);
+                    
 
                     // if self.recording_started {
                     //     let mut f = OpenOptions::new()
