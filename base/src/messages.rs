@@ -2,6 +2,7 @@
 use std::sync::Mutex;
 use std::cell::OnceCell;
 use flume::{unbounded, Sender, Receiver};
+use crate::logger::Entry;
 
 static CHANNEL: Mutex<OnceCell<(Sender<Message>, Receiver<Message>)>> = Mutex::new(OnceCell::new());
 
@@ -23,7 +24,7 @@ pub enum Message {
 
     // Logging
     ClearLogText,
-    // Log(Entry),
+    Log(Entry),
 
     // Menu
     ShowAbout,

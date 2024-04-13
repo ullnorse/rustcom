@@ -579,8 +579,12 @@ name = "base"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
+ "env_logger",
  "flume",
+ "join_str",
+ "log",
  "serial2",
  "serialport",
 ]
@@ -1740,7 +1744,6 @@ dependencies = [
  "egui_dock",
  "env_logger",
  "flume",
- "join_str",
  "log",
  "open",
  "parking_lot",

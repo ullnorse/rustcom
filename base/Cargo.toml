@@ -7,8 +7,12 @@ edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
+log.workspace = true
+env_logger.workspace = true
 
 clap = {version = "4.5", features = ["derive"]}
 serial2 = "0.2"
 serialport = "4.3"
 flume = "0.11"
+chrono = "0.4"
+join_str = "0.1"

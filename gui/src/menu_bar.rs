@@ -1,4 +1,4 @@
-use base::messages::Message;
+use base::messages::{self, Message};
 use crate::App;
 use eframe::egui::{Context, TopBottomPanel, Ui};
 
@@ -15,9 +15,9 @@ impl App {
         });
     }
 
-    fn create_menu_item(&self, ui: &mut Ui, label: &str, _message: Message, shortcut: Option<&str>) {
+    fn create_menu_item(&self, ui: &mut Ui, label: &str, message: Message, shortcut: Option<&str>) {
         if ui.button(format!("{:<30}{}", label, shortcut.unwrap_or_default())).clicked() {
-            // self.do_update(message);
+            messages::send(message);
             ui.close_menu();
         }
     }
