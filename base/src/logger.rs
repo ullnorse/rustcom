@@ -94,13 +94,11 @@ impl Log for Logger {
     fn log(&self, record: &log::Record) {
         let entry: Entry = record.into();
 
-        if let Some(sender) = self.sender.get() {
-            println!("got here");
+        if let Some(_sender) = self.sender.get() {
             messages::send(Message::Log(entry));
         }
 
         if self.enabled(record.metadata()) {
-            println!("got here2");
             self.inner.log(record);
         }
     }
