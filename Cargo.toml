@@ -1,19 +1,11 @@
-[workspace]
-members = [
-    "base",
-    "gui",
-    "tui",
-    "rustcom"
-]
+[package]
+name = "rustcom"
+version = "0.1.0"
+edition = "2021"
 
-resolver = "2"
-
-[workspace.dependencies]
-base = { path = "base" }
-gui = { path = "gui" }
-tui = { path = "tui" }
-rustcom = { path = "rustcom" }
-
-anyhow = "1.0"
-log = "0.4"
-env_logger = "0.11"
+[dependencies]
+egui = "0.29.1"
+eframe = "0.29.1"
+egui_dock = "0.14.0"
+crossbeam = "0.8.4"
+serialport5 = "5.0.2"
