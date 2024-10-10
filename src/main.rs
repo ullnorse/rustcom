@@ -10,6 +10,12 @@ use messages::Message;
 
 use serialport5::{DataBits, Parity, StopBits, FlowControl};
 
+#[derive(PartialEq)]
+enum TextMode {
+    Hex,
+    Ascii,
+}
+
 struct App {
     baud_rate: i32,
     data_bits: DataBits,
@@ -20,6 +26,9 @@ struct App {
     input_text: String,
     input_add_cr: bool,
     output_text: String,
+
+    auto_scroll: bool,
+    text_mode: TextMode,
 }
 
 impl App {
@@ -35,6 +44,8 @@ impl App {
             input_text: String::new(),
             input_add_cr: false,
             output_text: "aleksa".to_string(),
+            auto_scroll: false,
+            text_mode: TextMode::Ascii,
         }
     }
 
@@ -173,6 +184,37 @@ impl App {
                             ui.checkbox(&mut false, "CR=LF");
                             ui.checkbox(&mut false, "Stay on top");
                         });
+
+                        ui.add_space(ui.available_width());
+                    });
+                });
+
+                ui.group(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.button("Clear");
+                        ui.checkbox(&mut self.auto_scroll, "Auto Scroll");
+                        ui.button("Reset Cnt");
+                        ui.text_edit_singleline(&mut "13");
+                        ui.label("Cnt = 13");
+
+                        ui.vertical(|ui| {
+                            ui.radio_value(&mut self.text_mode, TextMode::Hex, "HEX");
+                            ui.radio_value(&mut self.text_mode, TextMode::Ascii, "ASCII");
+                        });
+
+                        ui.vertical(|ui| {
+                            ui.checkbox(&mut false, "Log date stamp");
+
+                            ui.horizontal(|ui| {
+                                ui.button("Start Log");
+                                ui.button("Stop Log");
+                            });
+                        });
+
+                        ui.button("Req/Resp");
+                        
+
+                        ui.add_space(ui.available_width());
                     });
                 });
             });
