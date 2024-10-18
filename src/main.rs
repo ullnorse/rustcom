@@ -1,12 +1,15 @@
 #![allow(unused)]
 
 mod status_bar;
+mod menu_bar;
 mod messages;
+mod serial;
 
 
 use crossbeam::channel::{Sender, Receiver, unbounded};
-use egui::ViewportBuilder;
+use egui::{Vec2, ViewportBuilder};
 use messages::Message;
+use serial::{Serial, SerialSettings};
 
 use serialport5::{DataBits, Parity, StopBits, FlowControl};
 
@@ -17,14 +20,15 @@ enum TextMode {
 }
 
 struct App {
-    baud_rate: i32,
-    data_bits: DataBits,
-    parity: Parity,
-    stop_bits: StopBits,
-    flow_control: FlowControl,
+    message_channel: (Sender<Message>, Receiver<Message>),
+
+    serial_settings: SerialSettings,
+    port: String,
+    serial: Serial,
+    connected: bool,
 
     input_text: String,
-    input_add_cr: bool,
+    input_line_end: String,
     output_text: String,
 
     auto_scroll: bool,
@@ -35,185 +39,142 @@ impl App {
     fn new(cc: &eframe::CreationContext) -> Self {
         cc.egui_ctx.set_visuals(egui::Visuals::light());
 
-        Self {
-            baud_rate: 115200,
-            data_bits: DataBits::Eight,
-            parity: Parity::None,
-            stop_bits: StopBits::One,
-            flow_control: FlowControl::None,
+        let mut app = Self {
+            message_channel: unbounded(),
+            serial_settings: SerialSettings::default(),
+            port: String::new(),
+            serial: Serial::new(),
+            connected: false,
             input_text: String::new(),
-            input_add_cr: false,
+            input_line_end: String::new(),
             output_text: "aleksa".to_string(),
             auto_scroll: false,
             text_mode: TextMode::Ascii,
+        };
+
+        let available_ports = Serial::available_ports();
+
+        if !available_ports.is_empty() {
+            app.port = available_ports[0].clone();
         }
+
+        app
     }
 
     fn render_main_area(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    ui.vertical(|ui| {
-                        if ui.button("Connect").clicked() {
-
-                        }
-
-                        if ui.button("Rescan").clicked() {
-                            
-                        }
-
-                        if ui.button("Help").clicked() {
-                            
-                        }
-
-                        if ui.button("About").clicked() {
-                            
-                        }
-
-                        if ui.button("Quit").clicked() {
-                            
-                        }
-                    });
-
-                    ui.group(|ui| {
-                        ui.vertical(|ui| {
-                            egui::ComboBox::from_id_salt("COM Port").show_ui(ui, |ui| {
-
-                            });
-
-                            ui.button("Refresh");
-                            ui.add_space(ui.available_height());
-                        });
-                    });
-
-                    ui.group(|ui| {
-                        ui.vertical(|ui| {
-                            ui.label("Baud rate");
-
-                            egui::Grid::new("grid_baud_rate").show(ui, |ui| {
-                                ui.radio_value(&mut self.baud_rate, 600, "600");
-                                ui.radio_value(&mut self.baud_rate, 14400, "14400");
-                                ui.radio_value(&mut self.baud_rate, 57600, "57600");
-        
-                                ui.end_row();
-        
-                                ui.radio_value(&mut self.baud_rate, 1200, "1200");
-                                ui.radio_value(&mut self.baud_rate, 19200, "19200");
-                                ui.radio_value(&mut self.baud_rate, 115200, "115200");
-
-                                ui.end_row();
-
-                                ui.radio_value(&mut self.baud_rate, 2400, "2400");
-                                ui.radio_value(&mut self.baud_rate, 28800, "28800");
-                                ui.radio_value(&mut self.baud_rate, 128000, "128000");
-
-                                ui.end_row();
-
-                                ui.radio_value(&mut self.baud_rate, 4800, "4800");
-                                ui.radio_value(&mut self.baud_rate, 38400, "38400");
-                                ui.radio_value(&mut self.baud_rate, 256000, "256000");
-
-                                ui.end_row();
-
-                                ui.radio_value(&mut self.baud_rate, 9600, "9600");
-                                ui.radio_value(&mut self.baud_rate, 56000, "56000");
-                                ui.radio_value(&mut self.baud_rate, 1000000, "1000000");
-                            });
-                        });
-                    });
-
-                    ui.group(|ui| {
-                        ui.vertical(|ui| {
-                            ui.label("Data bits");
-
-                            ui.radio_value(&mut self.data_bits, DataBits::Five, "5");
-                            ui.radio_value(&mut self.data_bits, DataBits::Six, "6");
-                            ui.radio_value(&mut self.data_bits, DataBits::Seven, "7");
-                            ui.radio_value(&mut self.data_bits, DataBits::Eight, "8");
-
-                            ui.add_space(ui.available_height());
-                        });
-                    });
-
-                    ui.group(|ui| {
-                        ui.vertical(|ui| {
-                            ui.label("Parity");
-
-                            ui.radio_value(&mut self.parity, Parity::None, "None");
-                            ui.radio_value(&mut self.parity, Parity::Odd, "Odd");
-                            ui.radio_value(&mut self.parity, Parity::Even, "Even");
-
-                            ui.add_space(ui.available_height());
-                        });
-                    });
-
-                    ui.group(|ui| {
-                        ui.vertical(|ui| {
-                            ui.label("Stop bits");
-
-                            ui.radio_value(&mut self.stop_bits, StopBits::One, "1");
-                            ui.radio_value(&mut self.stop_bits, StopBits::Two, "2");
-
-                            ui.add_space(ui.available_height());
-                        });
-                    });
-
-                    ui.group(|ui| {
-                        ui.vertical(|ui| {
-                            ui.label("Flow control");
-
-                            ui.radio_value(&mut self.flow_control, FlowControl::None, "None");
-                            ui.radio_value(&mut self.flow_control, FlowControl::Hardware, "Hardware");
-                            ui.radio_value(&mut self.flow_control, FlowControl::Software, "Software");
-
-                            ui.add_space(ui.available_height());
-                        });
-                    });
-                });
-
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
-                        egui::Grid::new("grid1").show(ui, |ui| {
+                        ui.vertical(|ui| {
+                            if self.connected {
+                                if ui.add_sized((70f32, 10f32), egui::Button::new("Disconnect")).clicked() {
+                                    self.send_message(Message::TryDisconnect);
+                                } 
+                            } else if ui.add_sized((70f32, 10f32), egui::Button::new("Connect")).clicked() {
+                                self.send_message(Message::TryConnect);
+                            }
+                        });
+
+                        egui::Grid::new("grid").show(ui, |ui| {
                             ui.checkbox(&mut false, "Auto Dis/Connect");
                             ui.checkbox(&mut false, "Time");
-                            ui.checkbox(&mut false, "Stream log");
 
                             ui.end_row();
 
+                            ui.checkbox(&mut false, "Stream log");
                             ui.checkbox(&mut false, "AutoStart Script");
+
+                            ui.end_row();
+
                             ui.checkbox(&mut false, "CR=LF");
                             ui.checkbox(&mut false, "Stay on top");
                         });
 
-                        ui.add_space(ui.available_width());
-                    });
-                });
-
-                ui.group(|ui| {
-                    ui.horizontal(|ui| {
-                        ui.button("Clear");
-                        ui.checkbox(&mut self.auto_scroll, "Auto Scroll");
-                        ui.button("Reset Cnt");
-                        ui.text_edit_singleline(&mut "13");
-                        ui.label("Cnt = 13");
-
                         ui.vertical(|ui| {
-                            ui.radio_value(&mut self.text_mode, TextMode::Hex, "HEX");
-                            ui.radio_value(&mut self.text_mode, TextMode::Ascii, "ASCII");
-                        });
-
-                        ui.vertical(|ui| {
-                            ui.checkbox(&mut false, "Log date stamp");
-
                             ui.horizontal(|ui| {
-                                ui.button("Start Log");
-                                ui.button("Stop Log");
+                                let available_ports = Serial::available_ports();
+
+                                egui::ComboBox::from_id_salt("COM Port")
+                                    .selected_text(&self.port)
+                                    .show_ui(ui, |ui| {
+                                        for device in &available_ports {
+                                            ui.selectable_value(&mut self.port, device.clone(), device);
+                                        }
+                                    });
+
+                                if ui.button("Refresh").clicked() {
+                                    let available_ports = Serial::available_ports();
+
+                                    if !available_ports.is_empty() {
+                                        self.port = available_ports[0].clone();
+                                    }
+                                }
+
                             });
-                        });
 
-                        ui.button("Req/Resp");
-                        
+                            let baud_rates = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 1000000];
+                            egui::ComboBox::from_label("Baud rate")
+                                .selected_text(self.serial_settings.baud_rate.to_string())
+                                .show_ui(ui, |ui| {
+                                    for baud_rate in baud_rates {
+                                        ui.selectable_value(&mut self.serial_settings.baud_rate, baud_rate, baud_rate.to_string());
+                                    }
+                                });
 
+                            let data_bits = [DataBits::Five, DataBits::Six, DataBits::Seven, DataBits::Eight];
+                            egui::ComboBox::from_label("Data bits")
+                                .selected_text(match self.serial_settings.data_bits {
+                                    DataBits::Five => "5",
+                                    DataBits::Six => "6",
+                                    DataBits::Seven => "7",
+                                    DataBits::Eight => "8",
+                                })
+                                .show_ui(ui, |ui| {
+                                    for bits in data_bits {
+                                        ui.selectable_value(&mut self.serial_settings.data_bits, bits, match bits {
+                                            DataBits::Five => "5",
+                                            DataBits::Six => "6",
+                                            DataBits::Seven => "7",
+                                            DataBits::Eight => "8",
+                                        });
+                                    }
+                                });
+
+                            let parity_options = [Parity::None, Parity::Odd, Parity::Even];
+                            egui::ComboBox::from_label("Parity")
+                                .selected_text(format!("{:?}", self.serial_settings.parity))
+                                .show_ui(ui, |ui| {
+                                    for parity in parity_options {
+                                        ui.selectable_value(&mut self.serial_settings.parity, parity, format!("{:?}", parity));
+                                    }
+                                });
+
+                            let stop_bits_values = [StopBits::One, StopBits::Two];
+                            egui::ComboBox::from_label("Stop bits")
+                                .selected_text(match self.serial_settings.stop_bits {
+                                    StopBits::One => "1",
+                                    StopBits::Two => "2",
+                                })
+                                .show_ui(ui, |ui| {
+                                    for stop_bits in stop_bits_values {
+                                        ui.selectable_value(&mut self.serial_settings.stop_bits, stop_bits, match stop_bits {
+                                            StopBits::One => "1",
+                                            StopBits::Two => "2",
+                                        });
+                                    }
+                                });
+
+                            let flow_control_options = [FlowControl::None, FlowControl::Hardware, FlowControl::Software];
+                            egui::ComboBox::from_label("Flowcontrol")
+                                .selected_text(format!("{:?}", self.serial_settings.flow_control))
+                                .show_ui(ui, |ui| {
+                                    for flow_control in flow_control_options {
+                                        ui.selectable_value(&mut self.serial_settings.flow_control, flow_control, format!("{:?}", flow_control));
+                                    }
+                                });
+
+                            });
                         ui.add_space(ui.available_width());
                     });
                 });
@@ -224,9 +185,35 @@ impl App {
 
                 ui.horizontal(|ui| {
                     ui.group(|ui| {
+                        ui.label("Input: ");
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| {
+                            egui::ComboBox::from_id_salt("ComboBox file type").show_ui(ui, |ui| {});
+                            ui.button("Send File...");
                             ui.button("Send");
-                            ui.checkbox(&mut self.input_add_cr, "+CR");
+
+                            
+                            let line_ends = ["".to_string(), "\n".to_string(), "\r".to_string(), "\r\n".to_string()];
+
+                            egui::ComboBox::from_id_salt("ComboBox line end")
+                                .width(50f32)
+                                .selected_text(match self.input_line_end.as_str() {
+                                    "" => "None".to_string(),
+                                    "\n" => "+LF".to_string(),
+                                    "\r" => "+CR".to_string(),
+                                    "\r\n" => "+CRLF".to_string(),
+                                    _ => "".to_string(),
+                                })
+                                .show_ui(ui, |ui| {
+                                    for line_end in line_ends {
+                                        ui.selectable_value(&mut self.input_line_end, line_end.clone(), match line_end.as_str() {
+                                            "" => "None".to_string(),
+                                            "\n" => "+LF".to_string(),
+                                            "\r" => "+CR".to_string(),
+                                            "\r\n" => "+CRLF".to_string(),
+                                            _ => "".to_string(),
+                                        });
+                                    }
+                                });
 
                             ui.add_sized(ui.available_size(), egui::TextEdit::singleline(&mut self.input_text));
                         });
@@ -246,30 +233,47 @@ impl App {
                     });
                 });
 
+                
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
-                            ui.label("Transmit");
-                            ui.button("Clear");
-                            ui.button("Send File");
-                            ui.add_space(ui.available_width());
+                        if ui.button("Clear").clicked() {
+                            self.output_text.clear();
+                        }
+
+                        ui.checkbox(&mut false, "Hex output");
+
+
                     });
-                });
 
-
-
-                let selectable_text = |ui: &mut egui::Ui, mut text: &str| {
-                    ui.group(|ui| {
+                    let selectable_text = |ui: &mut egui::Ui, mut text: &str| {
                         ui.add_sized(ui.available_size(), egui::TextEdit::multiline(&mut text));
-                    });
-                };
-
-                selectable_text(ui, &mut self.output_text);
+                    };
+                    selectable_text(ui, &mut self.output_text);
+                });
             });
         });
     }
 
-    fn handle_messages(&mut self) {
+    fn send_message(&mut self, msg: Message) {
+        self.message_channel.0.send(msg).unwrap();
+    }
 
+    fn handle_messages(&mut self) {
+        while let Ok(msg) = self.message_channel.1.try_recv() {
+            match msg {
+                Message::TryConnect => {
+                    if self.serial.try_connect(&self.port, self.serial_settings).is_ok() {
+                        self.connected = true;
+                    }
+                },
+                Message::TryDisconnect => {
+                    if self.serial.try_disconnect().is_ok() {
+                        self.connected = false;
+                    }
+                },
+                _ => {},
+            }
+        }
     }
 }
 
@@ -277,6 +281,7 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.handle_messages();
 
+        self.render_menu_bar(ctx);
         self.render_status_bar(ctx);
         self.render_main_area(ctx);
     }
