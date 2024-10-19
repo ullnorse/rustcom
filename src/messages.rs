@@ -3,14 +3,13 @@
 pub enum Message {
     // Connection
     TryConnect,
-    Connected,
     TryDisconnect,
-    Disconnected,
 
     // Shortcuts
     Cut,
     Copy,
     Paste,
+    ClearReceiveText,
 
     // File recording
     StartRecording,
@@ -28,6 +27,7 @@ pub enum Message {
 
     // Main terminal
     DataReceived(String),
-    DataForTransmit(String),
-    ClearTerminalText,
+    DataForTransmit,
+
+    Quit,
 }
