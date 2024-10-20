@@ -4,6 +4,7 @@ mod status_bar;
 mod menu_bar;
 mod messages;
 mod serial;
+mod macros;
 
 
 use clipboard::ClipboardProvider;
@@ -11,6 +12,7 @@ use crossbeam::channel::{Sender, Receiver, unbounded};
 use egui::{Vec2, ViewportBuilder};
 use messages::Message;
 use serial::{Serial, SerialSettings};
+use macros::Macros;
 
 use serialport5::{DataBits, Parity, StopBits, FlowControl};
 
@@ -37,6 +39,8 @@ struct App {
 
     tx_cnt: usize,
     rx_cnt: usize,
+
+    macros: Macros,
 }
 
 impl App {
@@ -56,6 +60,7 @@ impl App {
             text_mode: TextMode::Ascii,
             tx_cnt: 0,
             rx_cnt: 0,
+            macros: Macros::new(),
         };
 
         let available_ports = Serial::available_ports();
@@ -69,10 +74,6 @@ impl App {
 
     fn render_main_area(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            // egui::CollapsingHeader::new("Settings").open(Some(!self.serial.is_connected())).show(ui, |ui| {
-
-            // });
-
             ui.vertical(|ui| {
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
@@ -231,18 +232,24 @@ impl App {
                     });
                 });
 
-                // ui.group(|ui| {
-                //     ui.horizontal(|ui| {
-                //         ui.label("Macros");
-                //         ui.button("Set Macros");
+                ui.group(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Macros");
+                        if ui.button("Set Macros").clicked() {
+                            self.macros.set_open(true);
+                        }
 
-                //         for i in 0..16 {
-                //             ui.button(format!("M{}", i + 1));
-                //         }
+                        self.macros.show(ctx, ui, self.message_channel.0.clone());
 
-                //         ui.add_space(ui.available_width());
-                //     });
-                // });
+                        for i in 0..16 {
+                            if ui.button(format!("M{}{}", i + 1, if i < 10 {" "} else {""})).clicked() {
+                                self.send_message(Message::MacroClicked(self.macros.get_macro(i).unwrap().text));
+                            }
+                        }
+
+                        ui.add_space(ui.available_width());
+                    });
+                });
 
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
@@ -312,7 +319,10 @@ impl App {
                     self.serial.send(s);
 
                     self.tx_cnt += s.len();
-                }
+                },
+                Message::MacroClicked(msg) => {
+                    println!("Macro button clicked with message {}", msg);
+                },
                 _ => {},
             }
         }
@@ -345,9 +355,7 @@ impl eframe::App for App {
         self.render_status_bar(ctx);
         self.render_main_area(ctx);
 
-        if self.serial.is_connected() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(50));
-        }
+        ctx.request_repaint_after(std::time::Duration::from_millis(50));
     }
 }
 

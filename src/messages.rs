@@ -25,6 +25,9 @@ pub enum Message {
     SetDefaultUi,
     CloseApplication,
 
+    // Macros
+    MacroClicked(String),
+
     // Main terminal
     DataReceived(String),
     DataForTransmit,
