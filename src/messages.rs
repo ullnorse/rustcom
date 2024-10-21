@@ -22,6 +22,7 @@ pub enum Message {
     // Menu
     ShowAbout,
     CloseAbout,
+    ShowLog,
     SetDefaultUi,
     CloseApplication,
 

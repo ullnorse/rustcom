@@ -5,6 +5,7 @@ mod menu_bar;
 mod messages;
 mod serial;
 mod macros;
+mod logger;
 
 
 use clipboard::ClipboardProvider;
@@ -13,6 +14,8 @@ use egui::{Vec2, ViewportBuilder};
 use messages::Message;
 use serial::{Serial, SerialSettings};
 use macros::Macros;
+
+use log::{error, warn, info, debug, trace};
 
 use serialport5::{DataBits, Parity, StopBits, FlowControl};
 
@@ -74,6 +77,8 @@ impl App {
 
     fn render_main_area(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
+            logger::LOGGER.get().unwrap().show(ctx, ui);
+
             ui.vertical(|ui| {
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
@@ -322,7 +327,16 @@ impl App {
                 },
                 Message::MacroClicked(msg) => {
                     println!("Macro button clicked with message {}", msg);
+
+                    error!("Show log");
+                    warn!("Show log");
+                    info!("Show log");
+                    debug!("Show log");
+                    trace!("Show log");
                 },
+                Message::ShowLog => {
+                    logger::LOGGER.get().unwrap().set_open(true);
+                }
                 _ => {},
             }
         }
@@ -365,6 +379,10 @@ fn main() -> eframe::Result {
             .with_inner_size([800f32, 800f32]),
             ..Default::default()
     };
+
+    let logger = logger::Logger::new();
+    logger::LOGGER.set(logger).unwrap();
+    logger::init();
 
     eframe::run_native("Rustcom", native_options, Box::new(|cc| Ok(Box::new(App::new(cc)))))
 }

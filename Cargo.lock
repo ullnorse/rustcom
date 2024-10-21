@@ -2593,6 +2593,7 @@ dependencies = [
  "eframe",
  "egui",
  "egui_dock",
+ "log",
  "serialport5",
 ]
 
