@@ -4,6 +4,8 @@ use log::Level;
 pub static LOGGER: OnceLock<Logger> = OnceLock::new();
 
 pub fn init() {
+    let logger = Logger::new();
+    LOGGER.set(logger).unwrap();
     log::set_logger(Logger::global()).unwrap();
     log::set_max_level(log::LevelFilter::Trace);
 }
@@ -15,20 +17,26 @@ pub struct Logger {
     log_level: Mutex<Level>,
 }
 
+impl Default for Logger {
+    fn default() -> Self {
+        Self {
+            log: Mutex::new(String::new()),
+            window_open: Mutex::new(false),
+            log_level: Mutex::new(Level::Info),
+        }
+    }
+}
+
 impl Logger {
     pub fn global() -> &'static Logger {
         LOGGER.get().expect("logger is not initialized")
     }
 
     pub fn new() -> Self {
-        Self {
-            log: Mutex::new(String::new()),
-            window_open: Mutex::new(false),
-            log_level: Mutex::new(Level::Error),
-        }
+        Self::default()
     }
 
-    pub fn show(&self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    pub fn show(&self, ctx: &egui::Context) {
         egui::Window::new("Log")
             .resizable(false)
             .open(&mut self.window_open.lock().unwrap())
@@ -40,7 +48,6 @@ impl Logger {
                     }
 
                     let log_levels = [Level::Error, Level::Warn, Level::Info, Level::Debug, Level::Trace];
-                    let mut log_level = Level::Error;
 
                     egui::ComboBox::from_label("Log level")
                         .selected_text(format!("{:?}", *self.log_level.lock().unwrap()))

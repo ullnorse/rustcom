@@ -1,9 +1,9 @@
-use std::{io::{Read, Write}, primitive};
+use std::io::{Read, Write};
 
 use anyhow::Result;
 use crossbeam::channel::{Sender, Receiver, unbounded};
 use serialport5::{
-    available_ports, DataBits, FlowControl, Parity, SerialPort, SerialPortBuilder, StopBits, ClearBuffer
+    available_ports, DataBits, FlowControl, Parity, SerialPortBuilder, StopBits, ClearBuffer
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -29,7 +29,6 @@ impl Default for SerialSettings {
 
 impl SerialSettings {
     pub fn new(
-        port_name: String,
         baudrate: u32,
         data_bits: DataBits,
         stop_bits: StopBits,
@@ -56,8 +55,8 @@ pub struct Serial {
     connected: bool,
 }
 
-impl Serial {
-    pub fn new() -> Self {
+impl Default for Serial {
+    fn default() -> Self {
         Self {
             rx_thread_state_channel: unbounded(),
             tx_thread_state_channel: unbounded(),
@@ -66,9 +65,15 @@ impl Serial {
             connected: false,
         }
     }
+}
 
-    pub fn try_connect(&mut self, port_name: &str, settings: SerialSettings) -> Result<()> {
-        let mut write_port = serialport5::SerialPortBuilder::new()
+impl Serial {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn try_connect(&mut self, _port_name: &str, settings: SerialSettings) -> Result<()> {
+        let mut write_port = SerialPortBuilder::new()
             .baud_rate(settings.baud_rate)
             .data_bits(settings.data_bits)
             .stop_bits(settings.stop_bits)
@@ -79,7 +84,7 @@ impl Serial {
 
         self.connected = true;
 
-        write_port.clear(ClearBuffer::All);
+        write_port.clear(ClearBuffer::All)?;
 
         let mut read_port = write_port.try_clone()?;
         let mut serial_buf: Vec<u8> = vec![0; 1000];
@@ -98,7 +103,7 @@ impl Serial {
 
                 match read_port.read(serial_buf.as_mut_slice()) {
                     Ok(t) => {
-                        rx_sender.send(String::from_utf8_lossy(&serial_buf[..t]).to_string());
+                        rx_sender.send(String::from_utf8_lossy(&serial_buf[..t]).to_string()).unwrap();
                     },
                     Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => (),
                     Err(e) => eprintln!("{:?}", e),
@@ -113,7 +118,7 @@ impl Serial {
                 }
 
                 if let Ok(s) = tx_receiver.try_recv() {
-                    write_port.write_all(s.as_bytes());
+                    write_port.write_all(s.as_bytes()).unwrap();
                 }
             }
         });
@@ -131,13 +136,13 @@ impl Serial {
     }
 
     pub fn send(&self, data: &str) {
-        if (self.is_connected()) {
+        if self.is_connected() {
             self.tx_channel.0.send(data.to_string()).unwrap();
         }
     }
 
     pub fn try_recv(&self) -> Option<String> {
-        if (self.is_connected()) {
+        if self.is_connected() {
             return self.rx_channel.1.try_recv().ok();
         }
 

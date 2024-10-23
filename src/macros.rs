@@ -1,6 +1,5 @@
-use crate::App;
 use crossbeam::channel::Sender;
-use crate::Message;
+use crate::messages::Message;
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use std::thread;
 use std::time::Duration;
@@ -29,15 +28,21 @@ pub struct Macros {
     window_open: bool,
 }
 
-impl Macros {
-    pub fn new() -> Self {
+impl Default for Macros {
+    fn default() -> Self {
         Self {
             macros: core::array::from_fn(|_| Macro::default()),
             window_open: false,
         }
     }
+}
 
-    pub fn show(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, sender: Sender<Message>) {
+impl Macros {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn show(&mut self, ctx: &egui::Context, sender: Sender<Message>) {
         let mut repeat_changes = Vec::new();
 
         egui::Window::new("Macros")

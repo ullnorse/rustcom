@@ -1,4 +1,5 @@
-use crate::{messages::Message, App};
+use crate::messages::Message;
+use crate::app::App;
 
 fn create_menu_item<F>(ui: &mut egui::Ui, label: &str, shortcut: Option<&str>, mut callback: F)
 where

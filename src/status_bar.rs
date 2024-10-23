@@ -1,6 +1,6 @@
 #![allow(clippy::format_in_format_args)]
 
-use crate::App;
+use crate::app::App;
 use egui::TextBuffer;
 use serialport5::{DataBits, StopBits};
 
