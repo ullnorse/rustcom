@@ -1,12 +1,9 @@
-use std::io::{Read, Write};
-
 use anyhow::Result;
-use crossbeam::channel::{Sender, Receiver, unbounded};
-use serialport5::{
-    DataBits, FlowControl, Parity, SerialPortBuilder, StopBits, ClearBuffer
-};
-use log::info;
-
+use crossbeam::channel::{unbounded, Receiver, Sender};
+use serialport5::{ClearBuffer, DataBits, FlowControl, Parity, SerialPortBuilder, StopBits};
+use std::io::{Read, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug)]
 pub struct SerialSettings {
@@ -48,8 +45,8 @@ impl SerialSettings {
 }
 
 pub struct Serial {
-    rx_thread_state_channel: (Sender<()>, Receiver<()>),
-    tx_thread_state_channel: (Sender<()>, Receiver<()>),
+    rx_thread_running: Arc<AtomicBool>,
+    tx_thread_running: Arc<AtomicBool>,
 
     tx_channel: (Sender<String>, Receiver<String>),
     rx_channel: (Sender<String>, Receiver<String>),
@@ -60,8 +57,8 @@ pub struct Serial {
 impl Default for Serial {
     fn default() -> Self {
         Self {
-            rx_thread_state_channel: unbounded(),
-            tx_thread_state_channel: unbounded(),
+            rx_thread_running: Arc::new(AtomicBool::new(false)),
+            tx_thread_running: Arc::new(AtomicBool::new(false)),
             tx_channel: unbounded(),
             rx_channel: unbounded(),
             open: false,
@@ -91,34 +88,33 @@ impl Serial {
         let mut read_port = write_port.try_clone()?;
         let mut serial_buf: Vec<u8> = vec![0; 1000];
 
-        let (_, rx_thread_state_receiver) = self.rx_thread_state_channel.clone();
-        let (_, tx_thread_state_receiver) = self.tx_thread_state_channel.clone();
-
         let (rx_sender, _) = self.rx_channel.clone();
         let (_, tx_receiver) = self.tx_channel.clone();
 
-        std::thread::spawn(move || {
-            loop {
-                if rx_thread_state_receiver.try_recv().is_ok() {
-                    break;
-                }
+        let rx_thread_running = self.rx_thread_running.clone();
 
+        std::thread::spawn(move || {
+            rx_thread_running.store(true, Ordering::Relaxed);
+
+            while rx_thread_running.load(Ordering::Relaxed) {
                 match read_port.read(serial_buf.as_mut_slice()) {
                     Ok(t) => {
-                        rx_sender.send(String::from_utf8_lossy(&serial_buf[..t]).to_string()).unwrap();
-                    },
+                        rx_sender
+                            .send(String::from_utf8_lossy(&serial_buf[..t]).to_string())
+                            .unwrap();
+                    }
                     Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => (),
                     Err(e) => eprintln!("{:?}", e),
                 }
             }
         });
 
-        std::thread::spawn(move || {
-            loop {
-                if tx_thread_state_receiver.try_recv().is_ok() {
-                    break;
-                }
+        let tx_thread_running = self.tx_thread_running.clone();
 
+        std::thread::spawn(move || {
+            tx_thread_running.store(true, Ordering::Relaxed);
+
+            while tx_thread_running.load(Ordering::Relaxed) {
                 if let Ok(s) = tx_receiver.try_recv() {
                     write_port.write_all(s.as_bytes()).unwrap();
                 }
@@ -128,13 +124,11 @@ impl Serial {
         Ok(())
     }
 
-    pub fn try_close(&mut self) -> Result<()> {
-        self.tx_thread_state_channel.0.send(())?;
-        self.rx_thread_state_channel.0.send(())?;
+    pub fn close(&mut self) {
+        self.tx_thread_running.store(false, Ordering::Relaxed);
+        self.rx_thread_running.store(false, Ordering::Relaxed);
 
         self.open = false;
-
-        Ok(())
     }
 
     pub fn send(&self, data: &str) {
