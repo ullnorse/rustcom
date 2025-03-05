@@ -99,7 +99,7 @@ impl App {
                                     .add_sized((70f32, 10f32), egui::Button::new("Disconnect"))
                                     .clicked()
                                 {
-                                    self.send_message(Message::TryDisconnect);
+                                    self.send_message(Message::Disconnect);
                                 }
                             } else if ui
                                 .add_sized((70f32, 10f32), egui::Button::new("Connect"))
@@ -354,10 +354,8 @@ impl App {
                         info!("Couldn't open serial port {}", self.port);
                     }
                 }
-                Message::TryDisconnect => {
-                    if self.serial.try_close().is_err() {
-                        info!("Couldn't close serial port {}", self.port);
-                    }
+                Message::Disconnect => {
+                    self.serial.close();
                 }
                 Message::Quit => {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);

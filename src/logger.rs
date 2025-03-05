@@ -1,5 +1,5 @@
-use std::sync::{Mutex, OnceLock};
 use log::Level;
+use std::sync::{Mutex, OnceLock};
 
 pub static LOGGER: OnceLock<Logger> = OnceLock::new();
 
@@ -47,15 +47,25 @@ impl Logger {
                         self.log.lock().unwrap().clear();
                     }
 
-                    let log_levels = [Level::Error, Level::Warn, Level::Info, Level::Debug, Level::Trace];
+                    let log_levels = [
+                        Level::Error,
+                        Level::Warn,
+                        Level::Info,
+                        Level::Debug,
+                        Level::Trace,
+                    ];
 
                     egui::ComboBox::from_label("Log level")
                         .selected_text(format!("{:?}", *self.log_level.lock().unwrap()))
                         .show_ui(ui, |ui| {
                             for level in log_levels {
-                                ui.selectable_value(&mut *self.log_level.lock().unwrap(), level, level.as_str());
+                                ui.selectable_value(
+                                    &mut *self.log_level.lock().unwrap(),
+                                    level,
+                                    level.as_str(),
+                                );
                             }
-                    });
+                        });
                 });
 
                 let selectable_text = |ui: &mut egui::Ui, mut text: &str| {
@@ -66,11 +76,11 @@ impl Logger {
 
                 ui.group(|ui| {
                     egui::ScrollArea::vertical()
-                            .auto_shrink([false, false])
-                            .stick_to_bottom(true)
-                            .show(ui, |ui| {
-                                selectable_text(ui, self.log.lock().unwrap().as_str());
-                            });
+                        .auto_shrink([false, false])
+                        .stick_to_bottom(true)
+                        .show(ui, |ui| {
+                            selectable_text(ui, self.log.lock().unwrap().as_str());
+                        });
                 });
             });
     }
@@ -87,7 +97,10 @@ impl log::Log for Logger {
 
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
-            self.log.lock().unwrap().push_str(&format!("{} - {}\n", record.level(), record.args()));
+            self.log
+                .lock()
+                .unwrap()
+                .push_str(&format!("{} - {}\n", record.level(), record.args()));
         }
     }
 

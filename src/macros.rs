@@ -1,9 +1,16 @@
-use crossbeam::channel::Sender;
 use crate::messages::Message;
-use std::{io::Write, path::Path, sync::{atomic::{AtomicBool, Ordering}, Arc}};
+use anyhow::Result;
+use crossbeam::channel::Sender;
 use std::thread;
 use std::time::Duration;
-use anyhow::Result;
+use std::{
+    io::Write,
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 #[derive(Clone)]
 pub struct Macro {
@@ -54,23 +61,31 @@ impl Macros {
                     ui.horizontal(|ui| {
                         let button_size = egui::vec2(60.0, 30.0);
 
-                        if ui.add_sized(button_size, egui::Button::new("Load")).clicked() {
+                        if ui
+                            .add_sized(button_size, egui::Button::new("Load"))
+                            .clicked()
+                        {
                             if let Some(path) = rfd::FileDialog::new()
                                 .set_title("Open")
                                 .set_directory(directories::BaseDirs::new().unwrap().home_dir())
-                                .pick_file() {
-                                    self.read_config_from_file(path.as_path());
-                                    self.config_file = path.into_os_string().into_string().unwrap();
-                                }
+                                .pick_file()
+                            {
+                                self.read_config_from_file(path.as_path());
+                                self.config_file = path.into_os_string().into_string().unwrap();
+                            }
                         }
 
-                        if ui.add_sized(button_size, egui::Button::new("Save")).clicked() {
+                        if ui
+                            .add_sized(button_size, egui::Button::new("Save"))
+                            .clicked()
+                        {
                             if let Some(path) = rfd::FileDialog::new()
                                 .set_title("Save As")
                                 .set_directory(directories::BaseDirs::new().unwrap().home_dir())
-                                .save_file() {
-                                    self.save_config_to_file(path.as_path()).unwrap();
-                                }
+                                .save_file()
+                            {
+                                self.save_config_to_file(path.as_path()).unwrap();
+                            }
                         }
 
                         ui.label(&self.config_file);
@@ -85,8 +100,16 @@ impl Macros {
 
                             spinbox(ui, &mut self.macros[i].delay, 0, u32::MAX, 10);
 
-                            if ui.add_sized(egui::vec2(50.0, 20.0), egui::Button::new(format!("M{}", i + 1))).clicked() {
-                                sender.send(Message::MacroClicked(self.macros[i].text.clone())).unwrap();
+                            if ui
+                                .add_sized(
+                                    egui::vec2(50.0, 20.0),
+                                    egui::Button::new(format!("M{}", i + 1)),
+                                )
+                                .clicked()
+                            {
+                                sender
+                                    .send(Message::MacroClicked(self.macros[i].text.clone()))
+                                    .unwrap();
                             }
 
                             ui.text_edit_singleline(&mut self.macros[i].text);
@@ -101,7 +124,13 @@ impl Macros {
         }
     }
 
-    pub fn render_ui(&mut self, open: bool, window_open: &mut bool, ui: &mut egui::Ui, sender: Sender<Message>) {
+    pub fn render_ui(
+        &mut self,
+        open: bool,
+        window_open: &mut bool,
+        ui: &mut egui::Ui,
+        sender: Sender<Message>,
+    ) {
         if open {
             ui.group(|ui| {
                 ui.horizontal(|ui| {
@@ -111,8 +140,13 @@ impl Macros {
                     }
 
                     for i in 0..self.macros.len() {
-                        if ui.button(format!("M{}{}", i + 1, if i < 10 {" "} else {""})).clicked() {
-                            sender.send(Message::MacroClicked(self.macros[i].text.clone())).unwrap();
+                        if ui
+                            .button(format!("M{}{}", i + 1, if i < 10 { " " } else { "" }))
+                            .clicked()
+                        {
+                            sender
+                                .send(Message::MacroClicked(self.macros[i].text.clone()))
+                                .unwrap();
                         }
                     }
 
@@ -184,7 +218,7 @@ fn spinbox(ui: &mut egui::Ui, value: &mut u32, min: u32, max: u32, step: u32) {
         ui.add(
             egui::DragValue::new(value)
                 .range(0..=u32::MAX)
-                .speed(step as f64)
+                .speed(step as f64),
         );
 
         if ui.add(egui::Button::new("-")).clicked() {

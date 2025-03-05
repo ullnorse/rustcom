@@ -1,7 +1,7 @@
+use super::serial::SerialSettings;
 use anyhow::Result;
 use clap::Parser;
-use serialport5::{FlowControl, DataBits, Parity, StopBits};
-use super::serial::SerialSettings;
+use serialport5::{DataBits, FlowControl, Parity, StopBits};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -46,7 +46,7 @@ fn possible_data_bits(s: &str) -> Result<DataBits, String> {
         "6" => Ok(DataBits::Six),
         "7" => Ok(DataBits::Seven),
         "8" => Ok(DataBits::Eight),
-        _ => Err("Possible values: 5, 6, 7, 8 | default = 8".to_string())
+        _ => Err("Possible values: 5, 6, 7, 8 | default = 8".to_string()),
     }
 }
 
@@ -55,7 +55,7 @@ fn possible_parity(s: &str) -> Result<Parity, String> {
         "none" => Ok(Parity::None),
         "even" => Ok(Parity::Even),
         "odd" => Ok(Parity::Odd),
-        _ => Err("Possible values: none, odd, even | default = none".to_string())
+        _ => Err("Possible values: none, odd, even | default = none".to_string()),
     }
 }
 
@@ -64,7 +64,7 @@ fn possible_flow_control(s: &str) -> Result<FlowControl, String> {
         "none" => Ok(FlowControl::None),
         "software" => Ok(FlowControl::Software),
         "Hardware" => Ok(FlowControl::Hardware),
-        _ => Err("Possible values: none, software, hardware | default = none".to_string())
+        _ => Err("Possible values: none, software, hardware | default = none".to_string()),
     }
 }
 
@@ -72,7 +72,7 @@ fn possible_stop_bits(s: &str) -> Result<StopBits, String> {
     match s {
         "1" => Ok(StopBits::One),
         "2" => Ok(StopBits::Two),
-        _ => Err("Possible values: 1, 2 | default = 1".to_string())
+        _ => Err("Possible values: 1, 2 | default = 1".to_string()),
     }
 }
 
