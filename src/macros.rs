@@ -1,8 +1,9 @@
 use crossbeam::channel::Sender;
 use crate::messages::Message;
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::{io::Write, path::Path, sync::{atomic::{AtomicBool, Ordering}, Arc}};
 use std::thread;
 use std::time::Duration;
+use anyhow::Result;
 
 #[derive(Clone)]
 pub struct Macro {
@@ -25,14 +26,14 @@ impl Default for Macro {
 
 pub struct Macros {
     macros: [Macro; 16],
-    window_open: bool,
+    config_file: String,
 }
 
 impl Default for Macros {
     fn default() -> Self {
         Self {
             macros: core::array::from_fn(|_| Macro::default()),
-            window_open: false,
+            config_file: String::new(),
         }
     }
 }
@@ -42,18 +43,37 @@ impl Macros {
         Self::default()
     }
 
-    pub fn show(&mut self, ctx: &egui::Context, sender: Sender<Message>) {
+    pub fn render_window(&mut self, open: &mut bool, ctx: &egui::Context, sender: Sender<Message>) {
         let mut repeat_changes = Vec::new();
 
         egui::Window::new("Macros")
-            .open(&mut self.window_open)
+            .open(open)
             .resizable(false)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.horizontal(|ui| {
                         let button_size = egui::vec2(60.0, 30.0);
-                        ui.add_sized(button_size, egui::Button::new("Load"));
-                        ui.add_sized(button_size, egui::Button::new("Save"));
+
+                        if ui.add_sized(button_size, egui::Button::new("Load")).clicked() {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .set_title("Open")
+                                .set_directory(directories::BaseDirs::new().unwrap().home_dir())
+                                .pick_file() {
+                                    self.read_config_from_file(path.as_path());
+                                    self.config_file = path.into_os_string().into_string().unwrap();
+                                }
+                        }
+
+                        if ui.add_sized(button_size, egui::Button::new("Save")).clicked() {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .set_title("Save As")
+                                .set_directory(directories::BaseDirs::new().unwrap().home_dir())
+                                .save_file() {
+                                    self.save_config_to_file(path.as_path()).unwrap();
+                                }
+                        }
+
+                        ui.label(&self.config_file);
                     });
 
                     for i in 0..16 {
@@ -81,6 +101,58 @@ impl Macros {
         }
     }
 
+    pub fn render_ui(&mut self, open: bool, window_open: &mut bool, ui: &mut egui::Ui, sender: Sender<Message>) {
+        if open {
+            ui.group(|ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Macros");
+                    if ui.button("Set Macros").clicked() {
+                        *window_open = true;
+                    }
+
+                    for i in 0..self.macros.len() {
+                        if ui.button(format!("M{}{}", i + 1, if i < 10 {" "} else {""})).clicked() {
+                            sender.send(Message::MacroClicked(self.macros[i].text.clone())).unwrap();
+                        }
+                    }
+
+                    ui.add_space(ui.available_width());
+                });
+            });
+        }
+    }
+
+    fn save_config_to_file(&mut self, path: &Path) -> Result<()> {
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)?;
+
+        let mut config = String::new();
+        for i in 0..self.macros.len() {
+            config.push_str(&format!("M{}\n", i + 1));
+            config.push_str(&self.macros[i].text);
+            config.push('\n');
+        }
+
+        file.write_all(config.as_bytes())?;
+
+        Ok(())
+    }
+
+    fn read_config_from_file(&mut self, path: &Path) {
+        if let Ok(config) = std::fs::read_to_string(path) {
+            for (i, line) in config.lines().skip(1).step_by(2).enumerate() {
+                if i >= self.macros.len() {
+                    break;
+                }
+
+                self.macros[i].text = line.trim().to_string();
+            }
+        }
+    }
+
     fn handle_macro_repeat(&mut self, index: usize, sender: Sender<Message>) {
         let mac = &mut self.macros[index];
 
@@ -100,14 +172,6 @@ impl Macros {
         } else if !mac.repeat && mac.active.load(Ordering::SeqCst) {
             mac.active.store(false, Ordering::SeqCst);
         }
-    }
-
-    pub fn set_open(&mut self, state: bool) {
-        self.window_open = state;
-    }
-
-    pub fn get_macro(&self, index: usize) -> Option<Macro> {
-        self.macros.get(index).cloned()
     }
 }
 

@@ -25,6 +25,12 @@ fn edit_menu(app: &mut App, ui: &mut egui::Ui) {
     create_menu_item(ui, "Clear", Some("Ctrl+L"), || app.send_message(Message::ClearReceiveText));
 }
 
+fn windows_menu(app: &mut App, ui: &mut egui::Ui) {
+    if ui.checkbox(&mut app.macros_ui_open, "Show macros ui").changed() {
+        ui.close_menu();
+    }
+}
+
 fn help_menu(app: &mut App, ui: &mut egui::Ui) {
     create_menu_item(ui, "About", None, || app.send_message(Message::ShowAbout));
     create_menu_item(ui, "Log", None, || app.send_message(Message::ShowLog));
@@ -38,6 +44,7 @@ impl App {
             ui.horizontal(|ui| {
                 ui.menu_button("File", |ui| file_menu(self, ui));
                 ui.menu_button("Edit", |ui| edit_menu(self, ui));
+                ui.menu_button("Windows", |ui| windows_menu(self, ui));
                 ui.menu_button("Help", |ui| help_menu(self, ui));
             });
         });

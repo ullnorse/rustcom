@@ -1,14 +1,14 @@
-
-use clipboard::ClipboardProvider;
-use crossbeam::channel::{Sender, Receiver, unbounded};use crate::messages::Message;
-use thiserror::Error;
-use crate::serial::{Serial, SerialSettings};
-use crate::macros::Macros;
 use crate::logger;
+use crate::macros::Macros;
+use crate::messages::Message;
+use crate::serial::{Serial, SerialSettings};
+use clipboard::ClipboardProvider;
+use crossbeam::channel::{unbounded, Receiver, Sender};
+use thiserror::Error;
 
 use log::info;
 
-use serialport5::{DataBits, Parity, StopBits, FlowControl};
+use serialport5::{DataBits, FlowControl, Parity, StopBits};
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -21,6 +21,7 @@ pub struct App {
 
     pub serial_settings: SerialSettings,
     pub port: String,
+    pub available_ports: Vec<String>,
     pub serial: Serial,
 
     pub input_text: String,
@@ -34,31 +35,41 @@ pub struct App {
     pub rx_cnt: usize,
 
     pub macros: Macros,
+    pub macros_window_open: bool,
+    pub macros_ui_open: bool,
 }
 
 impl App {
-    pub fn new(port: String, serial_settings: SerialSettings, cc: &eframe::CreationContext) -> Self {
+    pub fn new(
+        port: String,
+        serial_settings: SerialSettings,
+        cc: &eframe::CreationContext,
+    ) -> Self {
         cc.egui_ctx.set_theme(egui::Theme::Light);
 
         let mut app = Self {
             message_channel: unbounded(),
             serial_settings,
             port,
+            available_ports: Serial::available_ports(),
             serial: Serial::new(),
             input_text: String::new(),
-            input_line_end: String::new(),
+            #[cfg(windows)]
+            input_line_end: "\r\n".to_string(),
+            #[cfg(unix)]
+            input_line_end: "\n".to_string(),
             output_text: String::new(),
             auto_scroll: true,
             hex_output: false,
             tx_cnt: 0,
             rx_cnt: 0,
             macros: Macros::new(),
+            macros_window_open: false,
+            macros_ui_open: true,
         };
 
-        let available_ports = Serial::available_ports();
-
-        if !available_ports.is_empty() {
-            app.port = available_ports[0].clone();
+        if !app.available_ports.is_empty() {
+            app.port = app.available_ports[0].clone();
         }
 
         logger::init();
@@ -68,7 +79,11 @@ impl App {
 
     fn render_windows(&mut self, ctx: &egui::Context) {
         logger::LOGGER.get().unwrap().show(ctx);
-        self.macros.show(ctx, self.message_channel.0.clone());
+        self.macros.render_window(
+            &mut self.macros_window_open,
+            ctx,
+            self.message_channel.0.clone(),
+        );
     }
 
     fn render_main_area(&mut self, ctx: &egui::Context) {
@@ -79,55 +94,76 @@ impl App {
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
                         ui.vertical(|ui| {
-                            if self.serial.is_connected() {
-                                if ui.add_sized((70f32, 10f32), egui::Button::new("Disconnect")).clicked() {
+                            if self.serial.is_open() {
+                                if ui
+                                    .add_sized((70f32, 10f32), egui::Button::new("Disconnect"))
+                                    .clicked()
+                                {
                                     self.send_message(Message::TryDisconnect);
                                 }
-                            } else if ui.add_sized((70f32, 10f32), egui::Button::new("Connect")).clicked() {
+                            } else if ui
+                                .add_sized((70f32, 10f32), egui::Button::new("Connect"))
+                                .clicked()
+                            {
                                 self.send_message(Message::TryConnect);
                             }
                         });
 
                         ui.vertical(|ui| {
-                            ui.checkbox(&mut false, "Timestamp").on_hover_text_at_pointer("Add timestamp to new lines in receive box");
-                            ui.checkbox(&mut self.auto_scroll, "Auto scroll").on_hover_text_at_pointer("Auto scroll receive box to the end");
+                            ui.checkbox(&mut false, "Timestamp")
+                                .on_hover_text_at_pointer(
+                                    "Add timestamp to new lines in receive box",
+                                );
+                            ui.checkbox(&mut self.auto_scroll, "Auto scroll")
+                                .on_hover_text_at_pointer("Auto scroll receive box to the end");
                         });
 
-                        // ui.add_space(ui.available_width() - 180f32);
+                        ui.add_space(ui.available_width() - 180f32);
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| {
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
-                                    let available_ports = Serial::available_ports();
-
                                     egui::ComboBox::from_id_salt("COM Port")
                                         .selected_text(&self.port)
                                         .show_ui(ui, |ui| {
-                                            for device in &available_ports {
-                                                ui.selectable_value(&mut self.port, device.clone(), device);
+                                            for device in &self.available_ports {
+                                                ui.selectable_value(
+                                                    &mut self.port,
+                                                    device.clone(),
+                                                    device,
+                                                );
                                             }
                                         });
 
                                     if ui.button("Refresh").clicked() {
-                                        let available_ports = Serial::available_ports();
+                                        self.available_ports = Serial::available_ports();
 
-                                        if !available_ports.is_empty() {
-                                            self.port = available_ports[0].clone();
+                                        if !self.available_ports.is_empty() {
+                                            self.port = self.available_ports[0].clone();
                                         }
                                     }
-
                                 });
 
-                                let baud_rates = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 1000000];
+                                let baud_rates =
+                                    [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 1000000];
                                 egui::ComboBox::from_label("Baud rate")
                                     .selected_text(self.serial_settings.baud_rate.to_string())
                                     .show_ui(ui, |ui| {
                                         for baud_rate in baud_rates {
-                                            ui.selectable_value(&mut self.serial_settings.baud_rate, baud_rate, baud_rate.to_string());
+                                            ui.selectable_value(
+                                                &mut self.serial_settings.baud_rate,
+                                                baud_rate,
+                                                baud_rate.to_string(),
+                                            );
                                         }
                                     });
 
-                                let data_bits = [DataBits::Five, DataBits::Six, DataBits::Seven, DataBits::Eight];
+                                let data_bits = [
+                                    DataBits::Five,
+                                    DataBits::Six,
+                                    DataBits::Seven,
+                                    DataBits::Eight,
+                                ];
                                 egui::ComboBox::from_label("Data bits")
                                     .selected_text(match self.serial_settings.data_bits {
                                         DataBits::Five => "5",
@@ -137,12 +173,16 @@ impl App {
                                     })
                                     .show_ui(ui, |ui| {
                                         for bits in data_bits {
-                                            ui.selectable_value(&mut self.serial_settings.data_bits, bits, match bits {
-                                                DataBits::Five => "5",
-                                                DataBits::Six => "6",
-                                                DataBits::Seven => "7",
-                                                DataBits::Eight => "8",
-                                            });
+                                            ui.selectable_value(
+                                                &mut self.serial_settings.data_bits,
+                                                bits,
+                                                match bits {
+                                                    DataBits::Five => "5",
+                                                    DataBits::Six => "6",
+                                                    DataBits::Seven => "7",
+                                                    DataBits::Eight => "8",
+                                                },
+                                            );
                                         }
                                     });
 
@@ -151,7 +191,11 @@ impl App {
                                     .selected_text(format!("{:?}", self.serial_settings.parity))
                                     .show_ui(ui, |ui| {
                                         for parity in parity_options {
-                                            ui.selectable_value(&mut self.serial_settings.parity, parity, format!("{:?}", parity));
+                                            ui.selectable_value(
+                                                &mut self.serial_settings.parity,
+                                                parity,
+                                                format!("{:?}", parity),
+                                            );
                                         }
                                     });
 
@@ -163,25 +207,39 @@ impl App {
                                     })
                                     .show_ui(ui, |ui| {
                                         for stop_bits in stop_bits_values {
-                                            ui.selectable_value(&mut self.serial_settings.stop_bits, stop_bits, match stop_bits {
-                                                StopBits::One => "1",
-                                                StopBits::Two => "2",
-                                            });
+                                            ui.selectable_value(
+                                                &mut self.serial_settings.stop_bits,
+                                                stop_bits,
+                                                match stop_bits {
+                                                    StopBits::One => "1",
+                                                    StopBits::Two => "2",
+                                                },
+                                            );
                                         }
                                     });
 
-                                let flow_control_options = [FlowControl::None, FlowControl::Hardware, FlowControl::Software];
+                                let flow_control_options = [
+                                    FlowControl::None,
+                                    FlowControl::Hardware,
+                                    FlowControl::Software,
+                                ];
                                 egui::ComboBox::from_label("Flowcontrol")
-                                    .selected_text(format!("{:?}", self.serial_settings.flow_control))
+                                    .selected_text(format!(
+                                        "{:?}",
+                                        self.serial_settings.flow_control
+                                    ))
                                     .show_ui(ui, |ui| {
                                         for flow_control in flow_control_options {
-                                            ui.selectable_value(&mut self.serial_settings.flow_control, flow_control, format!("{:?}", flow_control));
+                                            ui.selectable_value(
+                                                &mut self.serial_settings.flow_control,
+                                                flow_control,
+                                                format!("{:?}", flow_control),
+                                            );
                                         }
                                     });
+                            });
 
-                                });
-
-                                ui.add_space(ui.available_width());
+                            ui.add_space(ui.available_width());
                         });
                     });
                 });
@@ -194,13 +252,16 @@ impl App {
                     ui.group(|ui| {
                         ui.label("Input: ");
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| {
-                            // egui::ComboBox::from_id_salt("ComboBox file type").show_ui(ui, |ui| {});
-                            // ui.button("Send File...");
                             if ui.button("Send").clicked() {
                                 self.send_message(Message::DataForTransmit);
                             }
 
-                            let line_ends = ["".to_string(), "\n".to_string(), "\r".to_string(), "\r\n".to_string()];
+                            let line_ends = [
+                                "".to_string(),
+                                "\n".to_string(),
+                                "\r".to_string(),
+                                "\r\n".to_string(),
+                            ];
 
                             egui::ComboBox::from_id_salt("ComboBox line end")
                                 .width(50f32)
@@ -213,19 +274,30 @@ impl App {
                                 })
                                 .show_ui(ui, |ui| {
                                     for line_end in line_ends {
-                                        ui.selectable_value(&mut self.input_line_end, line_end.clone(), match line_end.as_str() {
-                                            "" => "None".to_string(),
-                                            "\n" => "+LF".to_string(),
-                                            "\r" => "+CR".to_string(),
-                                            "\r\n" => "+CRLF".to_string(),
-                                            _ => "".to_string(),
-                                        });
+                                        ui.selectable_value(
+                                            &mut self.input_line_end,
+                                            line_end.clone(),
+                                            match line_end.as_str() {
+                                                "" => "None".to_string(),
+                                                "\n" => "+LF".to_string(),
+                                                "\r" => "+CR".to_string(),
+                                                "\r\n" => "+CRLF".to_string(),
+                                                _ => "".to_string(),
+                                            },
+                                        );
                                     }
                                 });
 
-                            let response = ui.add_sized(ui.available_size(), egui::TextEdit::singleline(&mut self.input_text));
+                            let response = ui.add_sized(
+                                ui.available_size(),
+                                egui::TextEdit::singleline(&mut self.input_text),
+                            );
 
-                            if response.lost_focus() && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)) {
+                            if response.lost_focus()
+                                && ctx.input_mut(|i| {
+                                    i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
+                                })
+                            {
                                 self.send_message(Message::DataForTransmit);
                                 response.request_focus();
                             }
@@ -233,22 +305,12 @@ impl App {
                     });
                 });
 
-                ui.group(|ui| {
-                    ui.horizontal(|ui| {
-                        ui.label("Macros");
-                        if ui.button("Set Macros").clicked() {
-                            self.macros.set_open(true);
-                        }
-
-                        for i in 0..16 {
-                            if ui.button(format!("M{}{}", i + 1, if i < 10 {" "} else {""})).clicked() {
-                                self.send_message(Message::MacroClicked(self.macros.get_macro(i).unwrap().text));
-                            }
-                        }
-
-                        ui.add_space(ui.available_width());
-                    });
-                });
+                self.macros.render_ui(
+                    self.macros_ui_open,
+                    &mut self.macros_window_open,
+                    ui,
+                    self.message_channel.0.clone(),
+                );
 
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
@@ -284,48 +346,57 @@ impl App {
         while let Ok(msg) = self.message_channel.1.try_recv() {
             match msg {
                 Message::TryConnect => {
-                    if self.serial.try_connect(&self.port, self.serial_settings).is_err() {
+                    if self
+                        .serial
+                        .try_open(&self.port, self.serial_settings)
+                        .is_err()
+                    {
                         info!("Couldn't open serial port {}", self.port);
                     }
-                },
+                }
                 Message::TryDisconnect => {
-                    if self.serial.try_disconnect().is_err() {
+                    if self.serial.try_close().is_err() {
                         info!("Couldn't close serial port {}", self.port);
                     }
-                },
+                }
                 Message::Quit => {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                },
+                }
                 Message::Copy => {
                     if let Ok(mut clipboard) = clipboard::ClipboardContext::new() {
-                        clipboard.set_contents(self.output_text.clone()).unwrap_or_default();
+                        clipboard
+                            .set_contents(self.output_text.clone())
+                            .unwrap_or_default();
                     }
-                },
+                }
                 Message::Cut => {
                     if let Ok(mut clipboard) = clipboard::ClipboardContext::new() {
-                        clipboard.set_contents(self.output_text.clone()).unwrap_or_default();
+                        clipboard
+                            .set_contents(self.output_text.clone())
+                            .unwrap_or_default();
                         self.output_text.clear();
                     }
-                },
+                }
                 Message::Paste => {
                     if let Ok(mut clipboard) = clipboard::ClipboardContext::new() {
-                        self.input_text.push_str(&clipboard.get_contents().unwrap_or_default());
+                        self.input_text
+                            .push_str(&clipboard.get_contents().unwrap_or_default());
                     }
-                },
+                }
                 Message::DataForTransmit => {
                     let s = &format!("{}{}", self.input_text, self.input_line_end);
 
                     self.serial.send(s);
 
                     self.tx_cnt += s.len();
-                },
-                Message::MacroClicked(_msg) => {
-
-                },
+                }
+                Message::MacroClicked(msg) => {
+                    self.serial.send(&msg);
+                }
                 Message::ShowLog => {
                     logger::LOGGER.get().unwrap().set_open(true);
                 }
-                _ => {},
+                _ => {}
             }
         }
     }
@@ -363,10 +434,14 @@ impl eframe::App for App {
 
 pub fn run(port: String, settings: SerialSettings) -> anyhow::Result<()> {
     let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([800f32, 800f32]),
-            ..Default::default()
+        viewport: egui::ViewportBuilder::default().with_inner_size([800f32, 800f32]),
+        ..Default::default()
     };
 
-    eframe::run_native("Rustcom", native_options, Box::new(|cc| Ok(Box::new(App::new(port, settings, cc))))).map_err(|_| anyhow::anyhow!(AppError::Other))
+    eframe::run_native(
+        "Rustcom",
+        native_options,
+        Box::new(|cc| Ok(Box::new(App::new(port, settings, cc)))),
+    )
+    .map_err(|_| anyhow::anyhow!(AppError::Other))
 }

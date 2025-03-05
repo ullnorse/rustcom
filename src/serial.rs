@@ -3,8 +3,10 @@ use std::io::{Read, Write};
 use anyhow::Result;
 use crossbeam::channel::{Sender, Receiver, unbounded};
 use serialport5::{
-    available_ports, DataBits, FlowControl, Parity, SerialPortBuilder, StopBits, ClearBuffer
+    DataBits, FlowControl, Parity, SerialPortBuilder, StopBits, ClearBuffer
 };
+use log::info;
+
 
 #[derive(Clone, Copy, Debug)]
 pub struct SerialSettings {
@@ -52,7 +54,7 @@ pub struct Serial {
     tx_channel: (Sender<String>, Receiver<String>),
     rx_channel: (Sender<String>, Receiver<String>),
 
-    connected: bool,
+    open: bool,
 }
 
 impl Default for Serial {
@@ -62,7 +64,7 @@ impl Default for Serial {
             tx_thread_state_channel: unbounded(),
             tx_channel: unbounded(),
             rx_channel: unbounded(),
-            connected: false,
+            open: false,
         }
     }
 }
@@ -72,17 +74,17 @@ impl Serial {
         Self::default()
     }
 
-    pub fn try_connect(&mut self, _port_name: &str, settings: SerialSettings) -> Result<()> {
+    pub fn try_open(&mut self, port: &str, settings: SerialSettings) -> Result<()> {
         let mut write_port = SerialPortBuilder::new()
             .baud_rate(settings.baud_rate)
             .data_bits(settings.data_bits)
             .stop_bits(settings.stop_bits)
             .parity(settings.parity)
             .flow_control(settings.flow_control)
-            .read_timeout(Some(std::time::Duration::from_millis(100)))
-            .open("COM16")?;
+            .read_timeout(Some(std::time::Duration::from_millis(50)))
+            .open(port)?;
 
-        self.connected = true;
+        self.open = true;
 
         write_port.clear(ClearBuffer::All)?;
 
@@ -126,23 +128,23 @@ impl Serial {
         Ok(())
     }
 
-    pub fn try_disconnect(&mut self) -> Result<()> {
+    pub fn try_close(&mut self) -> Result<()> {
         self.tx_thread_state_channel.0.send(())?;
         self.rx_thread_state_channel.0.send(())?;
 
-        self.connected = false;
+        self.open = false;
 
         Ok(())
     }
 
     pub fn send(&self, data: &str) {
-        if self.is_connected() {
+        if self.is_open() {
             self.tx_channel.0.send(data.to_string()).unwrap();
         }
     }
 
     pub fn try_recv(&self) -> Option<String> {
-        if self.is_connected() {
+        if self.is_open() {
             return self.rx_channel.1.try_recv().ok();
         }
 
@@ -150,14 +152,14 @@ impl Serial {
     }
 
     pub fn available_ports() -> Vec<String> {
-        available_ports()
+        serialport::available_ports()
             .unwrap()
             .iter()
             .map(|serialport_info| serialport_info.port_name.clone())
             .collect()
     }
 
-    pub fn is_connected(&self) -> bool {
-        self.connected
+    pub fn is_open(&self) -> bool {
+        self.open
     }
 }
