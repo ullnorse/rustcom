@@ -1,7 +1,6 @@
-use super::serial::SerialSettings;
+use crate::serial::{DataBits, FlowControl, Parity, StopBits, SerialSettings};
 use anyhow::Result;
 use clap::Parser;
-use serialport5::{DataBits, FlowControl, Parity, StopBits};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -12,16 +11,16 @@ pub struct Cli {
     #[arg(short, long, value_parser = possible_baudrates, help = "Possible values: 0, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 1000000 | default = 115200")]
     baudrate: Option<u32>,
 
-    #[arg(short = 't', long, value_parser = possible_data_bits, help = "Possible values: 5, 6, 7, 8                                                   | default = 8")]
+    #[arg(short = 't', long, value_parser = possible_data_bits, help = "Possible values: 5, 6, 7, 8                                                      | default = 8")]
     data_bits: Option<DataBits>,
 
-    #[arg(short, long, value_parser = possible_parity, help = "Possible values: none, odd, even                                              | default = none")]
+    #[arg(short, long, value_parser = possible_parity, help = "Possible values: none, odd, even                                                 | default = none")]
     parity: Option<Parity>,
 
-    #[arg(short, long, value_parser = possible_flow_control, help = "Possible values: none, software, hardware                                     | default = none")]
+    #[arg(short, long, value_parser = possible_flow_control, help = "Possible values: none, software, hardware                                        | default = none")]
     flow_control: Option<FlowControl>,
 
-    #[arg(short, long, value_parser = possible_stop_bits, help = "Possible values: 1, 2                                                         | default = 1")]
+    #[arg(short, long, value_parser = possible_stop_bits, help = "Possible values: 1, 2                                                            | default = 1")]
     stop_bits: Option<StopBits>,
 }
 
@@ -64,7 +63,7 @@ fn possible_flow_control(s: &str) -> Result<FlowControl, String> {
     match s {
         "none" => Ok(FlowControl::None),
         "software" => Ok(FlowControl::Software),
-        "Hardware" => Ok(FlowControl::Hardware),
+        "hardware" => Ok(FlowControl::Hardware),
         _ => Err("Possible values: none, software, hardware | default = none".to_string()),
     }
 }

@@ -2,7 +2,6 @@
 
 use crate::app::App;
 use egui::TextBuffer;
-use serialport5::{DataBits, StopBits};
 
 impl App {
     pub fn render_status_bar(&mut self, ctx: &egui::Context) {
@@ -21,20 +20,12 @@ impl App {
                     self.serial_settings.baud_rate,
                     format!(
                         "{}",
-                        match self.serial_settings.data_bits {
-                            DataBits::Five => "5",
-                            DataBits::Six => "6",
-                            DataBits::Seven => "7",
-                            DataBits::Eight => "8",
-                        }
+                        self.serial_settings.data_bits
                     ),
                     format!("{:?}", self.serial_settings.parity).char_range(0..1),
                     format!(
                         "{}",
-                        match self.serial_settings.stop_bits {
-                            StopBits::One => "1",
-                            StopBits::Two => "2",
-                        }
+                        self.serial_settings.stop_bits
                     ),
                     self.serial_settings.flow_control,
                     self.tx_cnt,

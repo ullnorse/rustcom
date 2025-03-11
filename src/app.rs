@@ -1,14 +1,12 @@
 use crate::logger;
 use crate::macros::Macros;
 use crate::messages::Message;
-use crate::serial::{Serial, SerialSettings};
+use crate::serial::{Serial, SerialSettings, DataBits, FlowControl, Parity, StopBits};
 use clipboard::ClipboardProvider;
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use thiserror::Error;
 
 use log::info;
-
-use serialport5::{DataBits, FlowControl, Parity, StopBits};
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -165,55 +163,39 @@ impl App {
                                     DataBits::Eight,
                                 ];
                                 egui::ComboBox::from_label("Data bits")
-                                    .selected_text(match self.serial_settings.data_bits {
-                                        DataBits::Five => "5",
-                                        DataBits::Six => "6",
-                                        DataBits::Seven => "7",
-                                        DataBits::Eight => "8",
-                                    })
+                                    .selected_text(self.serial_settings.data_bits.to_string())
                                     .show_ui(ui, |ui| {
                                         for bits in data_bits {
                                             ui.selectable_value(
                                                 &mut self.serial_settings.data_bits,
                                                 bits,
-                                                match bits {
-                                                    DataBits::Five => "5",
-                                                    DataBits::Six => "6",
-                                                    DataBits::Seven => "7",
-                                                    DataBits::Eight => "8",
-                                                },
+                                                bits.to_string(),
                                             );
                                         }
                                     });
 
                                 let parity_options = [Parity::None, Parity::Odd, Parity::Even];
                                 egui::ComboBox::from_label("Parity")
-                                    .selected_text(format!("{:?}", self.serial_settings.parity))
+                                    .selected_text(self.serial_settings.parity.to_string())
                                     .show_ui(ui, |ui| {
                                         for parity in parity_options {
                                             ui.selectable_value(
                                                 &mut self.serial_settings.parity,
                                                 parity,
-                                                format!("{:?}", parity),
+                                                parity.to_string(),
                                             );
                                         }
                                     });
 
                                 let stop_bits_values = [StopBits::One, StopBits::Two];
                                 egui::ComboBox::from_label("Stop bits")
-                                    .selected_text(match self.serial_settings.stop_bits {
-                                        StopBits::One => "1",
-                                        StopBits::Two => "2",
-                                    })
+                                    .selected_text(self.serial_settings.stop_bits.to_string())
                                     .show_ui(ui, |ui| {
                                         for stop_bits in stop_bits_values {
                                             ui.selectable_value(
                                                 &mut self.serial_settings.stop_bits,
                                                 stop_bits,
-                                                match stop_bits {
-                                                    StopBits::One => "1",
-                                                    StopBits::Two => "2",
-                                                },
+                                                stop_bits.to_string(),
                                             );
                                         }
                                     });
@@ -224,16 +206,13 @@ impl App {
                                     FlowControl::Software,
                                 ];
                                 egui::ComboBox::from_label("Flowcontrol")
-                                    .selected_text(format!(
-                                        "{:?}",
-                                        self.serial_settings.flow_control
-                                    ))
+                                    .selected_text(self.serial_settings.flow_control.to_string())
                                     .show_ui(ui, |ui| {
                                         for flow_control in flow_control_options {
                                             ui.selectable_value(
                                                 &mut self.serial_settings.flow_control,
                                                 flow_control,
-                                                format!("{:?}", flow_control),
+                                                flow_control.to_string(),
                                             );
                                         }
                                     });
