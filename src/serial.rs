@@ -17,7 +17,7 @@ pub struct SerialSettings {
 impl Default for SerialSettings {
     fn default() -> Self {
         Self {
-            baud_rate: 115200,
+            baud_rate: 115_200,
             data_bits: DataBits::Eight,
             stop_bits: StopBits::One,
             parity: Parity::None,
@@ -46,34 +46,28 @@ impl SerialSettings {
 
 pub struct Serial {
     rx_thread_running: Arc<AtomicBool>,
-    tx_thread_running: Arc<AtomicBool>,
 
-    tx_channel: (Sender<String>, Receiver<String>),
+    // from user to serial
+    tx_channel: (Sender<Option<String>>, Receiver<Option<String>>),
+
+    // from serial to user
     rx_channel: (Sender<String>, Receiver<String>),
-
-    open: bool,
 }
 
 impl Default for Serial {
     fn default() -> Self {
         Self {
             rx_thread_running: Arc::new(AtomicBool::new(false)),
-            tx_thread_running: Arc::new(AtomicBool::new(false)),
             tx_channel: unbounded(),
             rx_channel: unbounded(),
-            open: false,
         }
     }
 }
 
 impl Serial {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn try_open(&mut self, port: &str, settings: SerialSettings) -> Result<()> {
+    pub fn new(port: &str, settings: SerialSettings) -> Result<Self> {
         let mut write_port = SerialPortBuilder::new()
-            .baud_rate(settings.baud_rate)
+            .baud_rate(0)
             .data_bits(settings.data_bits)
             .stop_bits(settings.stop_bits)
             .parity(settings.parity)
@@ -81,79 +75,72 @@ impl Serial {
             .read_timeout(Some(std::time::Duration::from_millis(50)))
             .open(port)?;
 
-        self.open = true;
-
         write_port.clear(ClearBuffer::All)?;
 
         let mut read_port = write_port.try_clone()?;
         let mut serial_buf: Vec<u8> = vec![0; 1000];
 
-        let (rx_sender, _) = self.rx_channel.clone();
-        let (_, tx_receiver) = self.tx_channel.clone();
+        let rx_channel = unbounded::<String>();
+        let tx_channel = unbounded::<Option<String>>();
 
-        let rx_thread_running = self.rx_thread_running.clone();
+        let rx_thread_running = Arc::new(AtomicBool::new(false));
+
+        let rx_thread_running_clone = rx_thread_running.clone();
+
+        let rx_sender = rx_channel.0.clone();
 
         std::thread::spawn(move || {
-            rx_thread_running.store(true, Ordering::Relaxed);
+            rx_thread_running_clone.store(true, Ordering::Relaxed);
 
-            while rx_thread_running.load(Ordering::Relaxed) {
+            while rx_thread_running_clone.load(Ordering::Relaxed) {
                 match read_port.read(serial_buf.as_mut_slice()) {
                     Ok(t) => {
                         rx_sender
                             .send(String::from_utf8_lossy(&serial_buf[..t]).to_string())
-                            .unwrap();
+                            .unwrap(); //TODO: handle unwrap
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => (),
-                    Err(e) => eprintln!("{:?}", e),
+                    Err(e) => eprintln!("{e:?}"),
                 }
             }
         });
 
-        let tx_thread_running = self.tx_thread_running.clone();
+        let tx_receiver = tx_channel.1.clone();
 
         std::thread::spawn(move || {
-            tx_thread_running.store(true, Ordering::Relaxed);
-
-            while tx_thread_running.load(Ordering::Relaxed) {
-                if let Ok(s) = tx_receiver.try_recv() {
-                    write_port.write_all(s.as_bytes()).unwrap();
-                }
+            while let Ok(Some(s)) = tx_receiver.recv() {
+                write_port.write_all(s.as_bytes()).unwrap();
             }
         });
 
+        Ok(Self {
+            rx_thread_running,
+            tx_channel,
+            rx_channel,
+        })
+    }
+
+    pub fn send(&self, data: &str) -> Result<()> {
+        self.tx_channel.0.send(Some(data.to_string()))?;
         Ok(())
     }
 
-    pub fn close(&mut self) {
-        self.tx_thread_running.store(false, Ordering::Relaxed);
-        self.rx_thread_running.store(false, Ordering::Relaxed);
-
-        self.open = false;
-    }
-
-    pub fn send(&self, data: &str) {
-        if self.is_open() {
-            self.tx_channel.0.send(data.to_string()).unwrap();
-        }
-    }
-
-    pub fn try_recv(&self) -> Option<String> {
-        if self.is_open() {
-            return self.rx_channel.1.try_recv().ok();
-        }
-
-        None
+    pub fn recv(&self) -> Option<String> {
+        self.rx_channel.1.try_recv().ok()
     }
 
     pub fn available_ports() -> Vec<String> {
         serialport::available_ports()
-            .unwrap()
+            .unwrap_or_default()
             .iter()
             .map(|serialport_info| serialport_info.port_name.clone())
             .collect()
     }
+}
 
-    pub fn is_open(&self) -> bool {
-        self.open
+impl Drop for Serial {
+    fn drop(&mut self) {
+        self.rx_thread_running.store(false, Ordering::Relaxed);
+        self.tx_channel.0.send(None).ok(); //TODO: handle result
     }
 }

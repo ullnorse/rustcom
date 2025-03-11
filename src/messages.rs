@@ -1,7 +1,7 @@
 #[derive(Clone, Debug)]
 pub enum Message {
     // Connection
-    TryConnect,
+    Connect,
     Disconnect,
 
     // Shortcuts

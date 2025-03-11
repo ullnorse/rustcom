@@ -9,7 +9,7 @@ pub struct Cli {
     #[arg(short, long, help = "Serial device name")]
     device: Option<String>,
 
-    #[arg(short, long, value_parser = possible_baudrates, help = "Possible values: 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 1000000 | default = 115200")]
+    #[arg(short, long, value_parser = possible_baudrates, help = "Possible values: 0, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 1000000 | default = 115200")]
     baudrate: Option<u32>,
 
     #[arg(short = 't', long, value_parser = possible_data_bits, help = "Possible values: 5, 6, 7, 8                                                   | default = 8")]
@@ -27,6 +27,7 @@ pub struct Cli {
 
 fn possible_baudrates(s: &str) -> Result<u32, String> {
     match s {
+        "0"    => Ok(0),
         "1200" => Ok(1200),
         "2400" => Ok(2400),
         "4800" => Ok(4800),
@@ -36,7 +37,7 @@ fn possible_baudrates(s: &str) -> Result<u32, String> {
         "57600" => Ok(57600),
         "115200" => Ok(115200),
         "1000000" => Ok(1000000),
-        _ => Err("Possible values: 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 1000000 | default = 115200".to_string())
+        _ => Err("Possible values: 0, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 1000000 | default = 115200".to_string())
     }
 }
 

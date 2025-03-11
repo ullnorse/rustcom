@@ -13,7 +13,7 @@ impl App {
                 ui.label(format!(
                     "{} {} | {}, {}-{}-{} flow control: {:?}           TX: {} | RX: {}      {}",
                     self.port,
-                    if self.serial.is_open() {
+                    if self.serial.is_some() {
                         "OPENED"
                     } else {
                         "CLOSED"

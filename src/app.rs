@@ -22,7 +22,7 @@ pub struct App {
     pub serial_settings: SerialSettings,
     pub port: String,
     pub available_ports: Vec<String>,
-    pub serial: Serial,
+    pub serial: Option<Serial>,
 
     pub input_text: String,
     pub input_line_end: String,
@@ -52,7 +52,7 @@ impl App {
             serial_settings,
             port,
             available_ports: Serial::available_ports(),
-            serial: Serial::new(),
+            serial: None,
             input_text: String::new(),
             #[cfg(windows)]
             input_line_end: "\r\n".to_string(),
@@ -68,7 +68,7 @@ impl App {
             macros_ui_open: true,
         };
 
-        if !app.available_ports.is_empty() {
+        if app.port.is_empty() && !app.available_ports.is_empty() {
             app.port = app.available_ports[0].clone();
         }
 
@@ -94,7 +94,7 @@ impl App {
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
                         ui.vertical(|ui| {
-                            if self.serial.is_open() {
+                            if self.serial.is_some() {
                                 if ui
                                     .add_sized((70f32, 10f32), egui::Button::new("Disconnect"))
                                     .clicked()
@@ -105,7 +105,7 @@ impl App {
                                 .add_sized((70f32, 10f32), egui::Button::new("Connect"))
                                 .clicked()
                             {
-                                self.send_message(Message::TryConnect);
+                                self.send_message(Message::Connect);
                             }
                         });
 
@@ -345,17 +345,14 @@ impl App {
     fn handle_messages(&mut self, ctx: &egui::Context) {
         while let Ok(msg) = self.message_channel.1.try_recv() {
             match msg {
-                Message::TryConnect => {
-                    if self
-                        .serial
-                        .try_open(&self.port, self.serial_settings)
-                        .is_err()
-                    {
-                        info!("Couldn't open serial port {}", self.port);
+                Message::Connect => match Serial::new(&self.port, self.serial_settings) {
+                    Ok(serial) => self.serial = Some(serial),
+                    Err(e) => {
+                        info!("Couldn't open serial port {} with error {}", self.port, e);
                     }
-                }
+                },
                 Message::Disconnect => {
-                    self.serial.close();
+                    self.serial.take();
                 }
                 Message::Quit => {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -384,12 +381,16 @@ impl App {
                 Message::DataForTransmit => {
                     let s = &format!("{}{}", self.input_text, self.input_line_end);
 
-                    self.serial.send(s);
+                    if let Some(ref serial) = self.serial {
+                        serial.send(s).ok(); //TODO: handle result
+                    }
 
                     self.tx_cnt += s.len();
                 }
                 Message::MacroClicked(msg) => {
-                    self.serial.send(&msg);
+                    if let Some(ref serial) = self.serial {
+                        serial.send(&msg).ok(); //TODO: handle result
+                    }
                 }
                 Message::ShowLog => {
                     logger::LOGGER.get().unwrap().set_open(true);
@@ -400,18 +401,20 @@ impl App {
     }
 
     fn handle_serial_data(&mut self) {
-        if let Some(s) = self.serial.try_recv() {
-            self.rx_cnt += s.len();
+        if let Some(ref serial) = self.serial {
+            if let Some(s) = serial.recv() {
+                self.rx_cnt += s.len();
 
-            if self.hex_output {
-                let mut hex_string = String::new();
-                for byte in s.as_bytes() {
-                    use std::fmt::Write;
-                    write!(hex_string, "{:02X} ", byte).unwrap();
+                if self.hex_output {
+                    let mut hex_string = String::new();
+                    for byte in s.as_bytes() {
+                        use std::fmt::Write;
+                        write!(hex_string, "{:02X} ", byte).unwrap();
+                    }
+                    self.output_text.push_str(&hex_string);
+                } else {
+                    self.output_text.push_str(&s);
                 }
-                self.output_text.push_str(&hex_string);
-            } else {
-                self.output_text.push_str(&s);
             }
         }
     }
