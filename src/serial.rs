@@ -1,9 +1,18 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use crossbeam::channel::{unbounded, Receiver, Sender};
+use log::error;
 use serialport5::{ClearBuffer, SerialPortBuilder};
 use std::io::{Read, Write};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::thread::{self, JoinHandle};
+
+pub enum SerialMsg {
+    Str(String),
+    File(PathBuf),
+    Close,
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum DataBits {
@@ -175,17 +184,19 @@ impl SerialSettings {
     }
 }
 
-pub struct Serial {
-    rx_thread_running: Arc<AtomicBool>,
+pub struct SerialMainState {
+    rx_stop_signal: Arc<AtomicBool>,
 
     // from user to serial
-    tx_channel: (Sender<Option<String>>, Receiver<Option<String>>),
+    tx_sender: Sender<SerialMsg>,
+
+    join_handles: Option<(JoinHandle<()>, JoinHandle<()>)>,
 
     // from serial to user
-    rx_channel: (Sender<String>, Receiver<String>),
+    rx_receiver: Receiver<String>,
 }
 
-impl Serial {
+impl SerialMainState {
     pub fn new(port: &str, settings: SerialSettings) -> Result<Self> {
         let mut write_port = SerialPortBuilder::new()
             .baud_rate(settings.baud_rate)
@@ -201,53 +212,52 @@ impl Serial {
         let mut read_port = write_port.try_clone()?;
         let mut serial_buf: Vec<u8> = vec![0; 1000];
 
-        let rx_channel = unbounded::<String>();
-        let tx_channel = unbounded::<Option<String>>();
+        let (rx_sender, rx_receiver) = unbounded::<String>();
+        let (tx_sender, tx_receiver) = unbounded::<SerialMsg>();
 
-        let rx_thread_running = Arc::new(AtomicBool::new(false));
-        let rx_thread_running_clone = rx_thread_running.clone();
+        let rx_stop_signal = Arc::new(AtomicBool::new(false));
+        let rx_thread_running_clone = rx_stop_signal.clone();
 
-        let rx_sender = rx_channel.0.clone();
-
-        std::thread::spawn(move || -> Result<()> {
+        let rx_join_handle = std::thread::spawn(move || {
             rx_thread_running_clone.store(true, Ordering::Relaxed);
 
             while rx_thread_running_clone.load(Ordering::Relaxed) {
                 match read_port.read(serial_buf.as_mut_slice()) {
                     Ok(t) => {
-                        rx_sender.send(String::from_utf8_lossy(&serial_buf[..t]).to_string())?;
+                        rx_sender.send(String::from_utf8_lossy(&serial_buf[..t]).to_string()).expect("TODO: report error to main");
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => (),
                     Err(e) => eprintln!("{e:?}"),
                 }
             }
-
-            Ok(())
         });
 
-        let tx_receiver = tx_channel.1.clone();
-
-        std::thread::spawn(move || -> Result<()> {
-            while let Ok(Some(s)) = tx_receiver.recv() {
-                write_port.write_all(s.as_bytes())?;
+        let tx_join_handle = std::thread::spawn(move || {
+            while let Ok(msg) = tx_receiver.recv() {
+                match msg {
+                    SerialMsg::Str(s) => {
+                        write_port.write_all(s.as_bytes()).expect("TODO: report error to main");
+                    },
+                    SerialMsg::File(_) => {},
+                    SerialMsg::Close => break,
+                }
             }
-
-            Ok(())
         });
 
         Ok(Self {
-            rx_thread_running,
-            tx_channel,
-            rx_channel,
+            rx_stop_signal,
+            tx_sender,
+            join_handles: Some((rx_join_handle, tx_join_handle)),
+            rx_receiver,
         })
     }
 
-    pub fn send(&self, data: &str) -> Result<()> {
-        Ok(self.tx_channel.0.send(Some(data.to_string()))?)
+    pub fn send(&self, msg: SerialMsg) -> Result<()> {
+        Ok(self.tx_sender.send(msg)?)
     }
 
     pub fn recv(&self) -> Option<String> {
-        self.rx_channel.1.try_recv().ok()
+        self.rx_receiver.try_recv().ok()
     }
 
     pub fn available_ports() -> Vec<String> {
@@ -257,11 +267,26 @@ impl Serial {
             .map(|serialport_info| serialport_info.port_name.clone())
             .collect()
     }
+
+    pub fn close(mut self) -> Result<()> {
+        self.close_internal().map_err(|e| anyhow!("Unable to join worker threads: {e:?}"))
+    }
+
+    fn close_internal(&mut self) -> thread::Result<()> {
+        if let Some((rx_handle, tx_handle)) = self.join_handles.take() {
+            self.rx_stop_signal.store(false, Ordering::Relaxed);
+            let _ = self.tx_sender.send(SerialMsg::Close);
+            rx_handle.join()?;
+            tx_handle.join()?;
+        }
+        Ok(())
+    }
 }
 
-impl Drop for Serial {
+impl Drop for SerialMainState {
     fn drop(&mut self) {
-        self.rx_thread_running.store(false, Ordering::Relaxed);
-        self.tx_channel.0.send(None).ok();
+        if let Err(e) = self.close_internal() {
+            error!("Unable to close serial port: {e:?}");
+        }
     }
 }

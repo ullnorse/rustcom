@@ -1,12 +1,12 @@
 use crate::logger;
 use crate::macros::Macros;
 use crate::messages::Message;
-use crate::serial::{Serial, SerialSettings, DataBits, FlowControl, Parity, StopBits};
+use crate::serial::{DataBits, FlowControl, Parity, SerialMainState, SerialSettings, StopBits, SerialMsg};
 use clipboard::ClipboardProvider;
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use thiserror::Error;
 
-use log::info;
+use log::error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -20,7 +20,7 @@ pub struct App {
     pub serial_settings: SerialSettings,
     pub port: String,
     pub available_ports: Vec<String>,
-    pub serial: Option<Serial>,
+    pub serial: Option<SerialMainState>,
 
     pub input_text: String,
     pub input_line_end: String,
@@ -49,7 +49,7 @@ impl App {
             message_channel: unbounded(),
             serial_settings,
             port,
-            available_ports: Serial::available_ports(),
+            available_ports: SerialMainState::available_ports(),
             serial: None,
             input_text: String::new(),
             #[cfg(windows)]
@@ -134,7 +134,7 @@ impl App {
                                         });
 
                                     if ui.button("Refresh").clicked() {
-                                        self.available_ports = Serial::available_ports();
+                                        self.available_ports = SerialMainState::available_ports();
 
                                         if !self.available_ports.is_empty() {
                                             self.port = self.available_ports[0].clone();
@@ -318,65 +318,74 @@ impl App {
     }
 
     pub fn send_message(&mut self, msg: Message) {
-        self.message_channel.0.send(msg).unwrap();
+        self.message_channel.0.send(msg).unwrap(); 
     }
 
     fn handle_messages(&mut self, ctx: &egui::Context) {
         while let Ok(msg) = self.message_channel.1.try_recv() {
-            match msg {
-                Message::Connect => match Serial::new(&self.port, self.serial_settings) {
-                    Ok(serial) => self.serial = Some(serial),
-                    Err(e) => {
-                        info!("Couldn't open serial port {} with error {}", self.port, e);
-                    }
-                },
-                Message::Disconnect => {
-                    self.serial.take();
-                }
-                Message::Quit => {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                }
-                Message::Copy => {
-                    if let Ok(mut clipboard) = clipboard::ClipboardContext::new() {
-                        clipboard
-                            .set_contents(self.output_text.clone())
-                            .unwrap_or_default();
-                    }
-                }
-                Message::Cut => {
-                    if let Ok(mut clipboard) = clipboard::ClipboardContext::new() {
-                        clipboard
-                            .set_contents(self.output_text.clone())
-                            .unwrap_or_default();
-                        self.output_text.clear();
-                    }
-                }
-                Message::Paste => {
-                    if let Ok(mut clipboard) = clipboard::ClipboardContext::new() {
-                        self.input_text
-                            .push_str(&clipboard.get_contents().unwrap_or_default());
-                    }
-                }
-                Message::DataForTransmit => {
-                    let s = &format!("{}{}", self.input_text, self.input_line_end);
-
-                    if let Some(ref serial) = self.serial {
-                        serial.send(s).ok(); //TODO: handle result
-                    }
-
-                    self.tx_cnt += s.len();
-                }
-                Message::MacroClicked(msg) => {
-                    if let Some(ref serial) = self.serial {
-                        serial.send(&msg).ok(); //TODO: handle result
-                    }
-                }
-                Message::ShowLog => {
-                    logger::LOGGER.get().unwrap().set_open(true);
-                }
-                _ => {}
+            if let Err(e) = self.handle_message(ctx, msg) {
+                error!("{e}");
             }
         }
+    }
+
+    fn handle_message(&mut self, ctx: &egui::Context, msg: Message) -> anyhow::Result<()> {
+        match msg {
+            Message::Connect => match SerialMainState::new(&self.port, self.serial_settings) {
+                Ok(serial) => self.serial = Some(serial),
+                Err(e) => {
+                    Err(e.context(format!("Couldn't open serial port {}", self.port)))?;
+                }
+            },
+            Message::Disconnect => {
+                if let Some(s) = self.serial.take() {
+                    s.close()?;
+                }
+            }
+            Message::Quit => {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+            Message::Copy => {
+                if let Ok(mut clipboard) = clipboard::ClipboardContext::new() {
+                    clipboard
+                        .set_contents(self.output_text.clone())
+                        .unwrap_or_default();
+                }
+            }
+            Message::Cut => {
+                if let Ok(mut clipboard) = clipboard::ClipboardContext::new() {
+                    clipboard
+                        .set_contents(self.output_text.clone())
+                        .unwrap_or_default();
+                    self.output_text.clear();
+                }
+            }
+            Message::Paste => {
+                if let Ok(mut clipboard) = clipboard::ClipboardContext::new() {
+                    self.input_text
+                        .push_str(&clipboard.get_contents().unwrap_or_default());
+                }
+            }
+            Message::DataForTransmit => {
+                if let Some(serial) = &self.serial {
+                    let s = format!("{}{}", self.input_text, self.input_line_end);
+                    let len = s.len();
+                    serial.send(SerialMsg::Str(s))?;
+                    self.tx_cnt += len;
+                }
+            }
+            Message::MacroClicked(msg) => {
+                if let Some(serial) = &self.serial {
+                    serial.send(SerialMsg::Str(msg))?;
+                }
+            }
+            Message::ShowLog => {
+                logger::LOGGER.get().unwrap().set_open(true);
+            }
+            _ => {}
+        }
+
+        Ok(())
     }
 
     fn handle_serial_data(&mut self) {
