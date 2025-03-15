@@ -1,4 +1,4 @@
-use crate::serial::{DataBits, FlowControl, Parity, StopBits, SerialSettings};
+use crate::serial::{DataBits, FlowControl, Parity, SerialSettings, StopBits};
 use anyhow::Result;
 use clap::Parser;
 
@@ -26,7 +26,7 @@ pub struct Cli {
 
 fn possible_baudrates(s: &str) -> Result<u32, String> {
     match s {
-        "0"    => Ok(0),
+        "0" => Ok(0),
         "1200" => Ok(1200),
         "2400" => Ok(2400),
         "4800" => Ok(4800),
@@ -36,7 +36,7 @@ fn possible_baudrates(s: &str) -> Result<u32, String> {
         "57600" => Ok(57600),
         "115200" => Ok(115200),
         "1000000" => Ok(1000000),
-        _ => Err("Possible values: 0, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 1000000 | default = 115200".to_string())
+        _ => Err("Possible values: 0, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 1000000 | default = 115200".to_string()),
     }
 }
 

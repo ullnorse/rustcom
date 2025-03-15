@@ -1,7 +1,9 @@
 use crate::logger;
 use crate::macros::Macros;
 use crate::messages::Message;
-use crate::serial::{DataBits, FlowControl, Parity, SerialMainState, SerialSettings, StopBits, SerialMsg};
+use crate::serial::{
+    DataBits, FlowControl, Parity, SerialMainState, SerialMsg, SerialSettings, StopBits,
+};
 use clipboard::ClipboardProvider;
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use thiserror::Error;
@@ -318,7 +320,7 @@ impl App {
     }
 
     pub fn send_message(&mut self, msg: Message) {
-        self.message_channel.0.send(msg).unwrap(); 
+        self.message_channel.0.send(msg).unwrap();
     }
 
     fn handle_messages(&mut self, ctx: &egui::Context) {

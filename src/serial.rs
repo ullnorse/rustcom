@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use log::error;
 use serialport5::{ClearBuffer, SerialPortBuilder};
@@ -224,7 +224,9 @@ impl SerialMainState {
             while rx_thread_running_clone.load(Ordering::Relaxed) {
                 match read_port.read(serial_buf.as_mut_slice()) {
                     Ok(t) => {
-                        rx_sender.send(String::from_utf8_lossy(&serial_buf[..t]).to_string()).expect("TODO: report error to main");
+                        rx_sender
+                            .send(String::from_utf8_lossy(&serial_buf[..t]).to_string())
+                            .expect("TODO: report error to main");
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => (),
                     Err(e) => eprintln!("{e:?}"),
@@ -236,9 +238,11 @@ impl SerialMainState {
             while let Ok(msg) = tx_receiver.recv() {
                 match msg {
                     SerialMsg::Str(s) => {
-                        write_port.write_all(s.as_bytes()).expect("TODO: report error to main");
-                    },
-                    SerialMsg::File(_) => {},
+                        write_port
+                            .write_all(s.as_bytes())
+                            .expect("TODO: report error to main");
+                    }
+                    SerialMsg::File(_) => {}
                     SerialMsg::Close => break,
                 }
             }
@@ -269,7 +273,8 @@ impl SerialMainState {
     }
 
     pub fn close(mut self) -> Result<()> {
-        self.close_internal().map_err(|e| anyhow!("Unable to join worker threads: {e:?}"))
+        self.close_internal()
+            .map_err(|e| anyhow!("Unable to join worker threads: {e:?}"))
     }
 
     fn close_internal(&mut self) -> thread::Result<()> {

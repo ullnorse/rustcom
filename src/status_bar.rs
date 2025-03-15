@@ -18,15 +18,9 @@ impl App {
                         "CLOSED"
                     },
                     self.serial_settings.baud_rate,
-                    format!(
-                        "{}",
-                        self.serial_settings.data_bits
-                    ),
+                    format!("{}", self.serial_settings.data_bits),
                     format!("{:?}", self.serial_settings.parity).char_range(0..1),
-                    format!(
-                        "{}",
-                        self.serial_settings.stop_bits
-                    ),
+                    format!("{}", self.serial_settings.stop_bits),
                     self.serial_settings.flow_control,
                     self.tx_cnt,
                     self.rx_cnt,
