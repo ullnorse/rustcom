@@ -55,10 +55,11 @@ impl Logger {
 
 impl log::Log for Logger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        match self.level.lock() {
-            Ok(level) => metadata.level() <= *level,
-            Err(_) => false
+        if let Ok(level) = self.level.lock() {
+            return metadata.level() <= *level;
         }
+
+        false
     }
 
     fn log(&self, record: &log::Record) {

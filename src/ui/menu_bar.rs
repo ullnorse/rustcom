@@ -1,10 +1,11 @@
 use crate::app::App;
-use crate::messages::Message;
 
-fn create_menu_item<F>(ui: &mut egui::Ui, label: &str, shortcut: Option<&str>, mut callback: F)
-where
-    F: FnMut(),
-{
+fn create_menu_item(
+    ui: &mut egui::Ui,
+    label: &str,
+    shortcut: Option<&str>,
+    mut callback: impl FnMut(),
+) {
     if ui
         .button(format!("{:<30}{}", label, shortcut.unwrap_or_default()))
         .clicked()
@@ -15,25 +16,23 @@ where
 }
 
 fn file_menu(app: &mut App, ui: &mut egui::Ui) {
-    create_menu_item(ui, "Quit", None, || app.send_message(Message::Quit));
+    create_menu_item(ui, "Quit", None, || app.quit());
 }
 
 fn edit_menu(app: &mut App, ui: &mut egui::Ui) {
     create_menu_item(ui, "Cut", Some("  Ctrl+X"), || {
-        app.send_message(Message::Cut)
+        app.cut();
     });
     create_menu_item(ui, "Copy", Some("Ctrl+C"), || {
-        app.send_message(Message::Copy)
+        app.copy();
     });
     create_menu_item(ui, "Paste", Some("Ctrl+V"), || {
-        app.send_message(Message::Paste)
+        app.paste();
     });
 
     ui.separator();
 
-    create_menu_item(ui, "Clear", Some("Ctrl+L"), || {
-        app.send_message(Message::ClearReceiveText)
-    });
+    create_menu_item(ui, "Clear", Some("Ctrl+L"), || app.output_text.clear());
 }
 
 fn windows_menu(app: &mut App, ui: &mut egui::Ui) {
@@ -46,8 +45,8 @@ fn windows_menu(app: &mut App, ui: &mut egui::Ui) {
 }
 
 fn help_menu(app: &mut App, ui: &mut egui::Ui) {
-    create_menu_item(ui, "About", None, || app.send_message(Message::ShowAbout));
-    create_menu_item(ui, "Log", None, || app.send_message(Message::ShowLog));
+    create_menu_item(ui, "Show About", None, || app.about_window_open = true);
+    create_menu_item(ui, "Show Log", None, || app.logger_window_open = true);
 }
 
 impl App {

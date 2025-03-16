@@ -1,15 +1,16 @@
 use crate::logger::Logger;
 use crate::macros::Macros;
-use crate::messages::Message;
 use crate::serial::{
     DataBits, FlowControl, Parity, SerialMainState, SerialMsg, SerialSettings, StopBits,
 };
-use clipboard::ClipboardProvider;
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use clipboard::{ClipboardContext, ClipboardProvider};
+use std::fmt::Write;
+use std::time::Duration;
 use thiserror::Error;
 
-use log::error;
+use log::{error, info};
 
+use crate::ui::windows::about_window;
 use crate::ui::windows::logger_window;
 
 #[derive(Error, Debug)]
@@ -19,8 +20,7 @@ pub enum AppError {
 }
 
 pub struct App {
-    message_channel: (Sender<Message>, Receiver<Message>),
-
+    pub ctx: egui::Context,
     pub serial_settings: SerialSettings,
     pub port: String,
     pub available_ports: Vec<String>,
@@ -40,6 +40,7 @@ pub struct App {
     pub macros_window_open: bool,
     pub macros_ui_open: bool,
     pub logger_window_open: bool,
+    pub about_window_open: bool,
 }
 
 impl App {
@@ -51,7 +52,7 @@ impl App {
         cc.egui_ctx.set_theme(egui::Theme::Light);
 
         let mut app = Self {
-            message_channel: unbounded(),
+            ctx: cc.egui_ctx.clone(),
             serial_settings,
             port,
             available_ports: SerialMainState::available_ports(),
@@ -70,6 +71,7 @@ impl App {
             macros_window_open: false,
             macros_ui_open: true,
             logger_window_open: false,
+            about_window_open: false,
         };
 
         if app.port.is_empty() && !app.available_ports.is_empty() {
@@ -81,12 +83,14 @@ impl App {
 
     fn render_windows(&mut self, ctx: &egui::Context) {
         logger_window::show(&mut self.logger_window_open, ctx);
+        about_window::show(&mut self.about_window_open, ctx);
 
-        self.macros.render_window(
-            &mut self.macros_window_open,
-            ctx,
-            self.message_channel.0.clone(),
-        );
+        //TODO: redesign
+        // self.macros.render_window(
+        //     &mut self.macros_window_open,
+        //     ctx,
+        //     self.message_channel.0.clone(),
+        // );
     }
 
     fn render_main_area(&mut self, ctx: &egui::Context) {
@@ -100,13 +104,13 @@ impl App {
                                     .add_sized((70f32, 10f32), egui::Button::new("Disconnect"))
                                     .clicked()
                                 {
-                                    self.send_message(Message::Disconnect);
+                                    self.disconnect();
                                 }
                             } else if ui
                                 .add_sized((70f32, 10f32), egui::Button::new("Connect"))
                                 .clicked()
                             {
-                                self.send_message(Message::Connect);
+                                self.connect();
                             }
                         });
 
@@ -235,7 +239,7 @@ impl App {
                         ui.label("Input: ");
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| {
                             if ui.button("Send").clicked() {
-                                self.send_message(Message::DataForTransmit);
+                                self.send();
                             }
 
                             let line_ends = [
@@ -280,19 +284,20 @@ impl App {
                                     i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
                                 })
                             {
-                                self.send_message(Message::DataForTransmit);
+                                self.send();
                                 response.request_focus();
                             }
                         });
                     });
                 });
 
-                self.macros.render_ui(
-                    self.macros_ui_open,
-                    &mut self.macros_window_open,
-                    ui,
-                    self.message_channel.0.clone(),
-                );
+                //TODO: redesign
+                // self.macros.render_ui(
+                //     self.macros_ui_open,
+                //     &mut self.macros_window_open,
+                //     ui,
+                //     self.message_channel.0.clone(),
+                // );
 
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
@@ -320,87 +325,15 @@ impl App {
         });
     }
 
-    pub fn send_message(&mut self, msg: Message) {
-        self.message_channel.0.send(msg).unwrap();
-    }
-
-    fn handle_messages(&mut self, ctx: &egui::Context) {
-        while let Ok(msg) = self.message_channel.1.try_recv() {
-            if let Err(e) = self.handle_message(ctx, msg) {
-                error!("{e}");
-            }
-        }
-    }
-
-    fn handle_message(&mut self, ctx: &egui::Context, msg: Message) -> anyhow::Result<()> {
-        match msg {
-            Message::Connect => match SerialMainState::new(&self.port, self.serial_settings) {
-                Ok(serial) => self.serial = Some(serial),
-                Err(e) => {
-                    Err(e.context(format!("Couldn't open serial port {}", self.port)))?;
-                }
-            },
-            Message::Disconnect => {
-                if let Some(s) = self.serial.take() {
-                    s.close()?;
-                }
-            }
-            Message::Quit => {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            }
-            Message::Copy => {
-                if let Ok(mut clipboard) = clipboard::ClipboardContext::new() {
-                    clipboard
-                        .set_contents(self.output_text.clone())
-                        .unwrap_or_default();
-                }
-            }
-            Message::Cut => {
-                if let Ok(mut clipboard) = clipboard::ClipboardContext::new() {
-                    clipboard
-                        .set_contents(self.output_text.clone())
-                        .unwrap_or_default();
-                    self.output_text.clear();
-                }
-            }
-            Message::Paste => {
-                if let Ok(mut clipboard) = clipboard::ClipboardContext::new() {
-                    self.input_text
-                        .push_str(&clipboard.get_contents().unwrap_or_default());
-                }
-            }
-            Message::DataForTransmit => {
-                if let Some(serial) = &self.serial {
-                    let s = format!("{}{}", self.input_text, self.input_line_end);
-                    let len = s.len();
-                    serial.send(SerialMsg::Str(s))?;
-                    self.tx_cnt += len;
-                }
-            }
-            Message::MacroClicked(msg) => {
-                if let Some(serial) = &self.serial {
-                    serial.send(SerialMsg::Str(msg))?;
-                }
-            }
-            Message::ShowLog => {
-                self.logger_window_open = true;
-            }
-            _ => {}
-        }
-
-        Ok(())
-    }
-
     fn handle_serial_data(&mut self) {
-        if let Some(ref serial) = self.serial {
+        if let Some(serial) = &self.serial {
             if let Some(s) = serial.recv() {
                 self.rx_cnt += s.len();
 
                 if self.hex_output {
                     let mut hex_string = String::new();
                     for byte in s.as_bytes() {
-                        use std::fmt::Write;
-                        write!(hex_string, "{:02X} ", byte).unwrap();
+                        let _ = write!(hex_string, "{:02X} ", byte);
                     }
                     self.output_text.push_str(&hex_string);
                 } else {
@@ -409,19 +342,78 @@ impl App {
             }
         }
     }
+
+    pub fn send(&mut self) {
+        if let Some(serial) = &self.serial {
+            let s = format!("{}{}", self.input_text, self.input_line_end);
+            let len = s.len();
+            serial.send(SerialMsg::Str(s)).unwrap();
+            self.tx_cnt += len;
+        }
+    }
+
+    pub fn macro_send(&mut self, msg: String) {
+        if let Some(serial) = &self.serial {
+            serial.send(SerialMsg::Str(msg)).unwrap();
+        }
+    }
+
+    pub fn connect(&mut self) {
+        if let Ok(serial) = SerialMainState::new(&self.port, self.serial_settings) {
+            self.serial = Some(serial);
+            info!("Opened serial port {}", self.port);
+        } else {
+            error!("Couldn't open serial port {}", self.port);
+        }
+    }
+
+    pub fn disconnect(&mut self) {
+        if let Some(serial) = self.serial.take() {
+            if let Err(e) = serial.close() {
+                error!("Couldn't close serial port: {e:?}");
+            }
+        }
+    }
+
+    pub fn cut(&mut self) {
+        if let Ok(mut clipboard) = ClipboardContext::new() {
+            clipboard
+                .set_contents(self.output_text.clone())
+                .unwrap_or_default();
+            self.output_text.clear();
+        }
+    }
+
+    pub fn copy(&mut self) {
+        if let Ok(mut clipboard) = ClipboardContext::new() {
+            clipboard
+                .set_contents(self.output_text.clone())
+                .unwrap_or_default();
+        }
+    }
+
+    pub fn paste(&mut self) {
+        if let Ok(mut clipboard) = ClipboardContext::new() {
+            self.input_text
+                .push_str(&clipboard.get_contents().unwrap_or_default());
+        }
+    }
+
+    pub fn quit(&mut self) {
+        self.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.handle_serial_data();
-        self.handle_messages(ctx);
 
         self.render_windows(ctx);
         self.render_menu_bar(ctx);
         self.render_status_bar(ctx);
         self.render_main_area(ctx);
 
-        ctx.request_repaint_after(std::time::Duration::from_millis(50));
+        ctx.request_repaint_after(Duration::from_millis(50));
     }
 }
 

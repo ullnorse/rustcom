@@ -1,6 +1,4 @@
-use crate::messages::Message;
 use anyhow::Result;
-use crossbeam::channel::Sender;
 use std::thread;
 use std::time::Duration;
 use std::{
@@ -50,7 +48,7 @@ impl Macros {
         Self::default()
     }
 
-    pub fn render_window(&mut self, open: &mut bool, ctx: &egui::Context, sender: Sender<Message>) {
+    pub fn render_window(&mut self, open: &mut bool, ctx: &egui::Context) {
         let mut repeat_changes = Vec::new();
 
         egui::Window::new("Macros")
@@ -107,9 +105,7 @@ impl Macros {
                                 )
                                 .clicked()
                             {
-                                sender
-                                    .send(Message::MacroClicked(self.macros[i].text.clone()))
-                                    .unwrap();
+                                // TODO: send
                             }
 
                             ui.text_edit_singleline(&mut self.macros[i].text);
@@ -118,19 +114,13 @@ impl Macros {
                 });
             });
 
-        for i in repeat_changes {
-            let sender_clone = sender.clone();
-            self.handle_macro_repeat(i, sender_clone);
+        for _i in repeat_changes {
+            //let sender_clone = sender.clone(); //TODO: fix
+            //self.handle_macro_repeat(i, sender_clone);
         }
     }
 
-    pub fn render_ui(
-        &mut self,
-        open: bool,
-        window_open: &mut bool,
-        ui: &mut egui::Ui,
-        sender: Sender<Message>,
-    ) {
+    pub fn render_ui(&mut self, open: bool, window_open: &mut bool, ui: &mut egui::Ui) {
         if open {
             ui.group(|ui| {
                 ui.horizontal(|ui| {
@@ -144,9 +134,7 @@ impl Macros {
                             .button(format!("M{}{}", i + 1, if i < 10 { " " } else { "" }))
                             .clicked()
                         {
-                            sender
-                                .send(Message::MacroClicked(self.macros[i].text.clone()))
-                                .unwrap();
+                            //TODO: send
                         }
                     }
 
@@ -187,7 +175,7 @@ impl Macros {
         }
     }
 
-    fn handle_macro_repeat(&mut self, index: usize, sender: Sender<Message>) {
+    fn _handle_macro_repeat(&mut self, index: usize) {
         let mac = &mut self.macros[index];
 
         if mac.repeat && !mac.active.load(Ordering::SeqCst) {
@@ -195,11 +183,11 @@ impl Macros {
             let active_flag = mac.active.clone();
             active_flag.store(true, Ordering::SeqCst);
 
-            let text = mac.text.clone();
+            let _text = mac.text.clone();
 
             thread::spawn(move || {
                 while active_flag.load(Ordering::SeqCst) {
-                    sender.send(Message::MacroClicked(text.clone())).unwrap();
+                    //sender.send(Message::MacroClicked(text.clone())).unwrap(); TODO:
                     thread::sleep(Duration::from_millis(delay as u64));
                 }
             });

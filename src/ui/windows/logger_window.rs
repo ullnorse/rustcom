@@ -25,12 +25,14 @@ pub fn show(open: &mut bool, ctx: &egui::Context) {
                     .selected_text(format!("{:?}", log_level))
                     .show_ui(ui, |ui| {
                         for level in levels {
-                            if ui.selectable_value(&mut log_level, level, level.as_str()).changed() {
+                            if ui
+                                .selectable_value(&mut log_level, level, level.as_str())
+                                .changed()
+                            {
                                 LOGGER.set_level(log_level);
                             }
                         }
                     });
-
             });
 
             let selectable_text = |ui: &mut egui::Ui, mut text: &str| {
