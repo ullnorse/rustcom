@@ -1,4 +1,4 @@
-use crate::logger;
+use crate::logger::Logger;
 use crate::macros::Macros;
 use crate::messages::Message;
 use crate::serial::{
@@ -9,6 +9,8 @@ use crossbeam::channel::{unbounded, Receiver, Sender};
 use thiserror::Error;
 
 use log::error;
+
+use crate::ui::windows::logger_window;
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -37,6 +39,7 @@ pub struct App {
     pub macros: Macros,
     pub macros_window_open: bool,
     pub macros_ui_open: bool,
+    pub logger_window_open: bool,
 }
 
 impl App {
@@ -66,19 +69,19 @@ impl App {
             macros: Macros::new(),
             macros_window_open: false,
             macros_ui_open: true,
+            logger_window_open: false,
         };
 
         if app.port.is_empty() && !app.available_ports.is_empty() {
             app.port = app.available_ports[0].clone();
         }
 
-        logger::init();
-
         app
     }
 
     fn render_windows(&mut self, ctx: &egui::Context) {
-        logger::LOGGER.get().unwrap().show(ctx);
+        logger_window::show(&mut self.logger_window_open, ctx);
+
         self.macros.render_window(
             &mut self.macros_window_open,
             ctx,
@@ -88,8 +91,6 @@ impl App {
 
     fn render_main_area(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.render_windows(ctx);
-
             ui.vertical(|ui| {
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
@@ -382,7 +383,7 @@ impl App {
                 }
             }
             Message::ShowLog => {
-                logger::LOGGER.get().unwrap().set_open(true);
+                self.logger_window_open = true;
             }
             _ => {}
         }
@@ -415,6 +416,7 @@ impl eframe::App for App {
         self.handle_serial_data();
         self.handle_messages(ctx);
 
+        self.render_windows(ctx);
         self.render_menu_bar(ctx);
         self.render_status_bar(ctx);
         self.render_main_area(ctx);
@@ -424,6 +426,8 @@ impl eframe::App for App {
 }
 
 pub fn run(port: String, settings: SerialSettings) -> anyhow::Result<()> {
+    Logger::init()?;
+
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([800f32, 800f32]),
         ..Default::default()

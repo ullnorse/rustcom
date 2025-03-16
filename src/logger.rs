@@ -1,110 +1,75 @@
+use anyhow::Result;
 use log::Level;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{LazyLock, Mutex};
 
-pub static LOGGER: OnceLock<Logger> = OnceLock::new();
-
-pub fn init() {
-    let logger = Logger::new();
-    LOGGER.set(logger).unwrap();
-    log::set_logger(Logger::global()).unwrap();
-    log::set_max_level(log::LevelFilter::Trace);
-}
+pub static LOGGER: LazyLock<Logger> = LazyLock::new(Logger::new);
 
 #[derive(Debug)]
 pub struct Logger {
-    log: Mutex<String>,
-    window_open: Mutex<bool>,
-    log_level: Mutex<Level>,
-}
-
-impl Default for Logger {
-    fn default() -> Self {
-        Self {
-            log: Mutex::new(String::new()),
-            window_open: Mutex::new(false),
-            log_level: Mutex::new(Level::Info),
-        }
-    }
+    buffer: Mutex<String>,
+    level: Mutex<Level>,
 }
 
 impl Logger {
-    pub fn global() -> &'static Logger {
-        LOGGER.get().expect("logger is not initialized")
+    pub fn init() -> Result<()> {
+        log::set_logger(&*LOGGER)?;
+        log::set_max_level(log::LevelFilter::Trace);
+        Ok(())
     }
 
-    pub fn new() -> Self {
-        Self::default()
+    fn new() -> Self {
+        Self {
+            buffer: Mutex::new(String::new()),
+            level: Mutex::new(Level::Info),
+        }
     }
 
-    pub fn show(&self, ctx: &egui::Context) {
-        egui::Window::new("Log")
-            .resizable(false)
-            .open(&mut self.window_open.lock().unwrap())
-            .constrain(false)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    if ui.button("Clear").clicked() {
-                        self.log.lock().unwrap().clear();
-                    }
-
-                    let log_levels = [
-                        Level::Error,
-                        Level::Warn,
-                        Level::Info,
-                        Level::Debug,
-                        Level::Trace,
-                    ];
-
-                    egui::ComboBox::from_label("Log level")
-                        .selected_text(format!("{:?}", *self.log_level.lock().unwrap()))
-                        .show_ui(ui, |ui| {
-                            for level in log_levels {
-                                ui.selectable_value(
-                                    &mut *self.log_level.lock().unwrap(),
-                                    level,
-                                    level.as_str(),
-                                );
-                            }
-                        });
-                });
-
-                let selectable_text = |ui: &mut egui::Ui, mut text: &str| {
-                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                        ui.add_sized(ui.available_size(), egui::TextEdit::multiline(&mut text));
-                    });
-                };
-
-                ui.group(|ui| {
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .stick_to_bottom(true)
-                        .show(ui, |ui| {
-                            selectable_text(ui, self.log.lock().unwrap().as_str());
-                        });
-                });
-            });
+    pub fn set_level(&self, level: Level) {
+        if let Ok(mut log_level) = self.level.lock() {
+            *log_level = level;
+        }
     }
 
-    pub fn set_open(&self, state: bool) {
-        *self.window_open.lock().unwrap() = state;
+    pub fn get_level(&self) -> Option<Level> {
+        if let Ok(level) = self.level.lock() {
+            return Some(*level);
+        }
+
+        None
+    }
+
+    pub fn get_logs(&self) -> Option<String> {
+        if let Ok(buffer) = self.buffer.lock() {
+            return Some(buffer.clone());
+        }
+
+        None
+    }
+
+    pub fn clear_logs(&self) {
+        if let Ok(mut buffer) = self.buffer.lock() {
+            buffer.clear();
+        }
     }
 }
 
 impl log::Log for Logger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= *self.log_level.lock().unwrap()
+        match self.level.lock() {
+            Ok(level) => metadata.level() <= *level,
+            Err(_) => false
+        }
     }
 
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
-            self.log
-                .lock()
-                .unwrap()
-                .push_str(&format!("{} - {}\n", record.level(), record.args()));
+            let log_entry = format!("{} - {}\n", record.level(), record.args());
+
+            if let Ok(mut buffer) = self.buffer.lock() {
+                buffer.push_str(&log_entry);
+            }
         }
     }
 
-    fn flush(&self) {
-        todo!()
-    }
+    fn flush(&self) {}
 }

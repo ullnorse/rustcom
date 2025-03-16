@@ -6,3 +6,4 @@ pub mod menu_bar;
 pub mod messages;
 pub mod serial;
 pub mod status_bar;
+pub mod ui;
