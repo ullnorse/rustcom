@@ -1,7 +1,7 @@
 use crate::logger::LOGGER;
 use log::Level;
 
-pub fn show(open: &mut bool, ctx: &egui::Context) {
+pub fn render_window(open: &mut bool, ctx: &egui::Context) {
     egui::Window::new("Log")
         .resizable(false)
         .open(open)

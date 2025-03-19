@@ -1,6 +1,6 @@
 use egui::{Align2, RichText, Vec2};
 
-pub fn show(open: &mut bool, ctx: &egui::Context) {
+pub fn render_window(open: &mut bool, ctx: &egui::Context) {
     egui::Window::new("About")
         .resizable(false)
         .collapsible(false)

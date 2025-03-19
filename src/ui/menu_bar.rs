@@ -20,22 +20,16 @@ fn file_menu(app: &mut App, ui: &mut egui::Ui) {
 }
 
 fn edit_menu(app: &mut App, ui: &mut egui::Ui) {
-    create_menu_item(ui, "Cut", Some("  Ctrl+X"), || {
-        app.cut();
-    });
-    create_menu_item(ui, "Copy", Some("Ctrl+C"), || {
-        app.copy();
-    });
-    create_menu_item(ui, "Paste", Some("Ctrl+V"), || {
-        app.paste();
-    });
+    create_menu_item(ui, "Cut", Some("  Ctrl+X"), || app.cut());
+    create_menu_item(ui, "Copy", Some("Ctrl+C"), || app.copy());
+    create_menu_item(ui, "Paste", Some("Ctrl+V"), || app.paste());
 
     ui.separator();
 
     create_menu_item(ui, "Clear", Some("Ctrl+L"), || app.output_text.clear());
 }
 
-fn windows_menu(app: &mut App, ui: &mut egui::Ui) {
+fn ui_menu(app: &mut App, ui: &mut egui::Ui) {
     if ui
         .checkbox(&mut app.macros_ui_open, "Show macros ui")
         .changed()
@@ -57,7 +51,7 @@ impl App {
             ui.horizontal(|ui| {
                 ui.menu_button("File", |ui| file_menu(self, ui));
                 ui.menu_button("Edit", |ui| edit_menu(self, ui));
-                ui.menu_button("Windows", |ui| windows_menu(self, ui));
+                ui.menu_button("UI", |ui| ui_menu(self, ui));
                 ui.menu_button("Help", |ui| help_menu(self, ui));
             });
         });

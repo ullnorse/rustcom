@@ -106,8 +106,8 @@ impl std::fmt::Display for StopBits {
             f,
             "{}",
             match self {
-                StopBits::One => "One",
-                StopBits::Two => "Two",
+                StopBits::One => "1",
+                StopBits::Two => "2",
             }
         )
     }
