@@ -1,21 +1,11 @@
 use anyhow::Result;
-use std::thread;
-use std::time::Duration;
-use std::{
-    io::Write,
-    path::Path,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-};
+use std::{io::Write, path::Path};
 
 #[derive(Clone)]
 pub struct Macro {
     pub text: String,
     pub delay: u32,
     pub repeat: bool,
-    pub active: Arc<AtomicBool>,
 }
 
 impl Default for Macro {
@@ -24,31 +14,50 @@ impl Default for Macro {
             text: String::new(),
             delay: 1000,
             repeat: false,
-            active: Arc::new(AtomicBool::new(false)),
         }
     }
 }
 
 pub struct Macros {
-    _macros: [Macro; 16],
-    _config_file: String,
+    macros: [Macro; Macros::NUM_OF_MACROS],
+    config_file: String,
 }
 
 impl Default for Macros {
     fn default() -> Self {
         Self {
-            _macros: core::array::from_fn(|_| Macro::default()),
-            _config_file: String::new(),
+            macros: core::array::from_fn(|_| Macro::default()),
+            config_file: String::new(),
         }
     }
 }
 
 impl Macros {
+    pub const NUM_OF_MACROS: usize = 16;
+
     pub fn new() -> Self {
         Self::default()
     }
 
-    fn _save_config_to_file(&mut self, path: &Path) -> Result<()> {
+    pub fn get_macro(&mut self, num: usize) -> Option<&mut Macro> {
+        self.macros.get_mut(num)
+    }
+
+    pub fn set_macro(&mut self, num: usize, new_macro: Macro) {
+        if num < Self::NUM_OF_MACROS {
+            self.macros[num] = new_macro;
+        }
+    }
+
+    pub fn get_config_file(&self) -> &str {
+        &self.config_file
+    }
+
+    pub fn set_config_file(&mut self, config_file: String) {
+        self.config_file = config_file;
+    }
+
+    pub fn save_config_to_file(&mut self, path: &Path) -> Result<()> {
         let mut file = std::fs::OpenOptions::new()
             .write(true)
             .create(true)
@@ -56,9 +65,9 @@ impl Macros {
             .open(path)?;
 
         let mut config = String::new();
-        for i in 0..self._macros.len() {
+        for i in 0..Self::NUM_OF_MACROS {
             config.push_str(&format!("M{}\n", i + 1));
-            config.push_str(&self._macros[i].text);
+            config.push_str(&self.macros[i].text);
             config.push('\n');
         }
 
@@ -67,35 +76,17 @@ impl Macros {
         Ok(())
     }
 
-    fn _read_config_from_file(&mut self, path: &Path) {
-        if let Ok(config) = std::fs::read_to_string(path) {
-            for (i, line) in config.lines().skip(1).step_by(2).enumerate() {
-                if i >= self._macros.len() {
-                    break;
-                }
+    pub fn read_config_from_file(&mut self, path: &Path) {
+        let Ok(config) = std::fs::read_to_string(path) else {
+            return;
+        };
 
-                self._macros[i].text = line.trim().to_string();
-            }
-        }
-    }
-
-    fn _handle_macro_repeat(&mut self, index: usize) {
-        let mac = &mut self._macros[index];
-
-        if mac.repeat && !mac.active.load(Ordering::SeqCst) {
-            let delay = mac.delay;
-            let active_flag = mac.active.clone();
-            active_flag.store(true, Ordering::SeqCst);
-
-            let _text = mac.text.clone();
-
-            thread::spawn(move || {
-                while active_flag.load(Ordering::SeqCst) {
-                    thread::sleep(Duration::from_millis(delay as u64));
-                }
-            });
-        } else if !mac.repeat && mac.active.load(Ordering::SeqCst) {
-            mac.active.store(false, Ordering::SeqCst);
+        for (macro_slot, line) in self
+            .macros
+            .iter_mut()
+            .zip(config.lines().skip(1).step_by(2))
+        {
+            macro_slot.text = line.trim().to_string();
         }
     }
 }

@@ -1,80 +1,96 @@
-pub fn render_window(open: &mut bool, ctx: &egui::Context) {
-    egui::Window::new("Macro")
-        .resizable(false)
-        .open(open)
-        .show(ctx, |ui| {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    let button_size = egui::vec2(60.0, 30.0);
+use crate::{app::App, macros::Macros, serial::SerialMsg};
+use log::error;
 
-                    if ui
-                        .add_sized(button_size, egui::Button::new("Load"))
-                        .clicked()
-                    {
-                        if let Some(dir) = directories::BaseDirs::new() {
-                            if let Some(path) = rfd::FileDialog::new()
-                                .set_title("Open")
-                                .set_directory(dir.home_dir())
-                                .pick_file()
-                            {
-                                //self.read_config_from_file(path.as_path());
+impl App {
+    pub fn show_macros_window(&mut self, ctx: &egui::Context) {
+        let mut macros_window_open = self.macros_window_open;
 
-                                if let Ok(_s) = path.into_os_string().into_string() {
-                                    //self.config_file = s;
+        egui::Window::new("Macro")
+            .resizable(false)
+            .open(&mut macros_window_open)
+            .show(ctx, |ui| {
+                ui.vertical(|ui| {
+                    ui.horizontal(|ui| {
+                        let button_size = egui::vec2(60.0, 30.0);
+
+                        if ui
+                            .add_sized(button_size, egui::Button::new("Load"))
+                            .clicked()
+                        {
+                            if let Some(dir) = directories::BaseDirs::new() {
+                                if let Some(path) = rfd::FileDialog::new()
+                                    .set_title("Open")
+                                    .set_directory(dir.home_dir())
+                                    .pick_file()
+                                {
+                                    self.macros.read_config_from_file(&path);
+
+                                    if let Ok(s) = path.into_os_string().into_string() {
+                                        self.macros.set_config_file(s);
+                                    }
                                 }
                             }
                         }
-                    }
-
-                    if ui
-                        .add_sized(button_size, egui::Button::new("Save"))
-                        .clicked()
-                    {
-                        if let Some(dir) = directories::BaseDirs::new() {
-                            if let Some(_path) = rfd::FileDialog::new()
-                                .set_title("Save As")
-                                .set_directory(dir.home_dir())
-                                .save_file()
-                            {
-                                println!("Saving file to {:?}", _path);
-                                // if let Err(e) = self.save_config_to_file(path.as_path()) {
-                                //     error!("Couldn't save file: {e:?}");
-                                // }
-                            }
-                        }
-                    }
-
-                    //ui.label(&self.config_file);
-                });
-
-                for i in 0..16 {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                        //let repeat = &mut self.macros[i].repeat;
-
-                        let mut checked = false;
-                        if ui.checkbox(&mut checked, "").changed() {
-                            //repeat_changes.push(i);
-                        }
-
-                        let mut delay: u32 = 0;
-                        spinbox(ui, &mut delay, 0, u32::MAX, 10);
 
                         if ui
-                            .add_sized(
-                                egui::vec2(50.0, 20.0),
-                                egui::Button::new(format!("M{}", i + 1)),
-                            )
+                            .add_sized(button_size, egui::Button::new("Save"))
                             .clicked()
                         {
-                            // TODO: send
+                            if let Some(dir) = directories::BaseDirs::new() {
+                                if let Some(path) = rfd::FileDialog::new()
+                                    .set_title("Save As")
+                                    .set_directory(dir.home_dir())
+                                    .save_file()
+                                {
+                                    if let Err(e) = self.macros.save_config_to_file(&path) {
+                                        error!("Couldn't save file: {e:?}");
+                                    }
+                                }
+                            }
                         }
 
-                        let mut macro_name = String::new();
-                        ui.text_edit_singleline(&mut macro_name);
+                        ui.label(self.macros.get_config_file());
                     });
-                }
+
+                    let mut updated_macros = Vec::new();
+
+                    for i in 0..Macros::NUM_OF_MACROS {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                            if let Some(m) = self.macros.get_macro(i) {
+                                let mut macro_copy = m.clone();
+
+                                ui.checkbox(&mut macro_copy.repeat, "");
+                                spinbox(ui, &mut macro_copy.delay, 0, u32::MAX, 10);
+
+                                if ui
+                                    .add_sized(
+                                        egui::vec2(50.0, 20.0),
+                                        egui::Button::new(format!("M{}", i + 1)),
+                                    )
+                                    .clicked()
+                                {
+                                    let text = macro_copy.text.clone();
+
+                                    if let Err(e) = self.serial_send(SerialMsg::Str(text)) {
+                                        error!("Couldn't send macro text: {e:?}");
+                                    }
+                                }
+
+                                ui.text_edit_singleline(&mut macro_copy.text);
+
+                                updated_macros.push((i, macro_copy));
+                            }
+                        });
+                    }
+
+                    for (i, m) in updated_macros {
+                        self.macros.set_macro(i, m);
+                    }
+                });
             });
-        });
+
+        self.macros_window_open = macros_window_open;
+    }
 }
 
 fn spinbox(ui: &mut egui::Ui, value: &mut u32, min: u32, max: u32, step: u32) {

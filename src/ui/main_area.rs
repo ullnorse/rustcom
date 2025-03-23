@@ -1,6 +1,8 @@
+use log::error;
+
 use crate::app::App;
-use crate::serial::{DataBits, FlowControl, Parity, SerialMainState, StopBits};
-use crate::ui::macros_ui;
+use crate::macros::Macros;
+use crate::serial::{DataBits, FlowControl, Parity, SerialMainState, SerialMsg, StopBits};
 
 impl App {
     pub fn render_main_area(&mut self, ctx: &egui::Context) {
@@ -39,11 +41,11 @@ impl App {
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
                                     egui::ComboBox::from_id_salt("COM Port")
-                                        .selected_text(&self.port)
+                                        .selected_text(&self.serial_settings.port)
                                         .show_ui(ui, |ui| {
                                             for device in &self.available_ports {
                                                 ui.selectable_value(
-                                                    &mut self.port,
+                                                    &mut self.serial_settings.port,
                                                     device.clone(),
                                                     device,
                                                 );
@@ -54,7 +56,8 @@ impl App {
                                         self.available_ports = SerialMainState::available_ports();
 
                                         if !self.available_ports.is_empty() {
-                                            self.port = self.available_ports[0].clone();
+                                            self.serial_settings.port =
+                                                self.available_ports[0].clone();
                                         }
                                     }
                                 });
@@ -201,7 +204,7 @@ impl App {
                     });
                 });
 
-                macros_ui::render_ui(self.macros_ui_open, &mut self.macros_window_open, ui);
+                self.render_macros_ui(ui);
 
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
@@ -227,5 +230,34 @@ impl App {
                 });
             });
         });
+    }
+
+    pub fn render_macros_ui(&mut self, ui: &mut egui::Ui) {
+        if self.macros_ui_open {
+            ui.group(|ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Macros");
+                    if ui.button("Set Macros").clicked() {
+                        self.macros_window_open = true;
+                    }
+
+                    for i in 0..Macros::NUM_OF_MACROS {
+                        if ui
+                            .button(format!("M{}{}", i + 1, if i < 10 { " " } else { "" }))
+                            .clicked()
+                        {
+                            if let Some(m) = self.macros.get_macro(i) {
+                                let text = m.text.clone();
+                                if let Err(e) = self.serial_send(SerialMsg::Str(text)) {
+                                    error!("Couldn't send macro: {e:?}");
+                                }
+                            }
+                        }
+                    }
+
+                    ui.add_space(ui.available_width());
+                });
+            });
+        }
     }
 }

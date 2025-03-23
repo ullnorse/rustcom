@@ -145,8 +145,9 @@ impl std::fmt::Display for Parity {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct SerialSettings {
+    pub port: String,
     pub baud_rate: u32,
     pub data_bits: DataBits,
     pub stop_bits: StopBits,
@@ -157,6 +158,7 @@ pub struct SerialSettings {
 impl Default for SerialSettings {
     fn default() -> Self {
         Self {
+            port: String::new(),
             baud_rate: 115_200,
             data_bits: DataBits::default(),
             stop_bits: StopBits::default(),
@@ -168,6 +170,7 @@ impl Default for SerialSettings {
 
 impl SerialSettings {
     pub fn new(
+        port: String,
         baud_rate: u32,
         data_bits: DataBits,
         stop_bits: StopBits,
@@ -175,6 +178,7 @@ impl SerialSettings {
         flow_control: FlowControl,
     ) -> Self {
         Self {
+            port,
             baud_rate,
             data_bits,
             stop_bits,
@@ -197,7 +201,7 @@ pub struct SerialMainState {
 }
 
 impl SerialMainState {
-    pub fn new(port: &str, settings: SerialSettings) -> Result<Self> {
+    pub fn new(settings: SerialSettings) -> Result<Self> {
         let mut write_port = SerialPortBuilder::new()
             .baud_rate(settings.baud_rate)
             .data_bits(settings.data_bits.into())
@@ -205,7 +209,7 @@ impl SerialMainState {
             .parity(settings.parity.into())
             .flow_control(settings.flow_control.into())
             .read_timeout(Some(std::time::Duration::from_millis(200)))
-            .open(port)?;
+            .open(settings.port)?;
 
         write_port.clear(ClearBuffer::All)?;
 

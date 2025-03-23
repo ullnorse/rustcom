@@ -1,25 +1,14 @@
 use crate::logger::Logger;
 use crate::macros::Macros;
 use crate::serial::{SerialMainState, SerialMsg, SerialSettings};
+use anyhow::{anyhow, bail, Result};
 use clipboard::{ClipboardContext, ClipboardProvider};
+use log::{error, info};
 use std::fmt::Write;
 use std::time::Duration;
-use thiserror::Error;
-
-use log::{error, info};
-
-use crate::ui::windows::{about_window, logger_window, macros_window};
-
-#[derive(Error, Debug)]
-pub enum AppError {
-    #[error("Other")]
-    Other,
-}
 
 pub struct App {
-    pub ctx: egui::Context,
     pub serial_settings: SerialSettings,
-    pub port: String,
     pub available_ports: Vec<String>,
     pub serial: Option<SerialMainState>,
 
@@ -41,24 +30,32 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(
-        port: String,
-        serial_settings: SerialSettings,
-        cc: &eframe::CreationContext,
-    ) -> Self {
+    pub fn new(serial_settings: SerialSettings, cc: &eframe::CreationContext) -> Self {
         cc.egui_ctx.set_theme(egui::Theme::Light);
 
-        let mut app = Self {
-            ctx: cc.egui_ctx.clone(),
-            serial_settings,
-            port,
-            available_ports: SerialMainState::available_ports(),
+        let available_ports = SerialMainState::available_ports();
+        let selected_port = serial_settings
+            .port
+            .is_empty()
+            .then(|| available_ports.first().cloned())
+            .flatten()
+            .unwrap_or_else(|| serial_settings.port.clone());
+
+        let settings = SerialSettings::new(
+            selected_port,
+            serial_settings.baud_rate,
+            serial_settings.data_bits,
+            serial_settings.stop_bits,
+            serial_settings.parity,
+            serial_settings.flow_control,
+        );
+
+        Self {
+            serial_settings: settings,
+            available_ports,
             serial: None,
             input_text: String::new(),
-            #[cfg(windows)]
-            input_line_end: "\r\n".to_string(),
-            #[cfg(unix)]
-            input_line_end: "\n".to_string(),
+            input_line_end: Self::default_line_end(),
             output_text: String::new(),
             auto_scroll: true,
             hex_output: false,
@@ -69,13 +66,7 @@ impl App {
             logger_window_open: false,
             about_window_open: false,
             macros_window_open: false,
-        };
-
-        if app.port.is_empty() && !app.available_ports.is_empty() {
-            app.port = app.available_ports[0].clone();
         }
-
-        app
     }
 
     fn render_ui(&mut self, ctx: &egui::Context) {
@@ -84,88 +75,114 @@ impl App {
         self.render_main_area(ctx);
     }
 
-    fn render_windows(&mut self, ctx: &egui::Context) {
-        logger_window::render_window(&mut self.logger_window_open, ctx);
-        about_window::render_window(&mut self.about_window_open, ctx);
-        macros_window::render_window(&mut self.macros_window_open, ctx);
+    fn show_windows(&mut self, ctx: &egui::Context) {
+        self.show_logger_window(ctx);
+        self.show_about_window(ctx);
+        self.show_macros_window(ctx);
     }
 
     fn handle_serial_data(&mut self) {
-        if let Some(serial) = &self.serial {
-            if let Some(s) = serial.recv() {
-                self.rx_cnt += s.len();
+        let Some(serial) = &self.serial else {
+            return;
+        };
 
-                if self.hex_output {
-                    let mut hex_string = String::new();
-                    for byte in s.as_bytes() {
-                        if let Err(e) = write!(hex_string, "{:02X} ", byte) {
-                            error!("Error writing hex string: {e:?}");
-                        }
-                    }
-                    self.output_text.push_str(&hex_string);
-                } else {
-                    self.output_text.push_str(&s);
+        let Some(data) = serial.recv() else {
+            return;
+        };
+
+        self.rx_cnt += data.len();
+
+        let output_text = if self.hex_output {
+            let mut hex_string = String::new();
+            for byte in data.as_bytes() {
+                if let Err(e) = write!(hex_string, "{:02X} ", byte) {
+                    error!("Error writing hex string: {e:?}");
                 }
             }
-        }
+            hex_string
+        } else {
+            data
+        };
+
+        self.output_text.push_str(&output_text);
     }
 
     pub fn send(&mut self) {
-        if let Some(serial) = &self.serial {
-            let s = format!("{}{}", self.input_text, self.input_line_end);
-            let len = s.len();
+        let s = format!("{}{}", self.input_text, self.input_line_end);
+        let len = s.len();
 
-            match serial.send(SerialMsg::Str(s)) {
-                Ok(_) => self.tx_cnt += len,
-                Err(e) => error!("Failed to send serial data: {e:?}")
-            }
+        if let Err(e) = self.serial_send(SerialMsg::Str(s)) {
+            error!("Failed to send serial data: {e:?}")
+        } else {
+            self.tx_cnt += len
         }
     }
 
+    pub fn serial_send(&mut self, msg: SerialMsg) -> Result<()> {
+        let Some(serial) = &self.serial else {
+            bail!("Serial is not available");
+        };
+
+        serial.send(msg)
+    }
+
     pub fn connect(&mut self) {
-        match SerialMainState::new(&self.port, self.serial_settings) {
+        match SerialMainState::new(self.serial_settings.clone()) {
             Ok(serial) => {
                 self.serial = Some(serial);
-                info!("Opened serial port {}", self.port);
+                info!("Opened serial port {}", self.serial_settings.port);
             }
-            Err(e) => error!("Couldn't open serial port {}: {e:?}", self.port)
+            Err(e) => error!(
+                "Couldn't open serial port {}: {e:?}",
+                self.serial_settings.port
+            ),
         }
     }
 
     pub fn disconnect(&mut self) {
-        if let Some(serial) = self.serial.take() {
-            if let Err(e) = serial.close() {
-                error!("Couldn't close serial port: {e:?}");
-            }
-        }
+        self.serial.take();
+        info!("Closed serial port: {}", self.serial_settings.port);
     }
 
     pub fn cut(&mut self) {
-        if let Ok(mut clipboard) = ClipboardContext::new() {
-            clipboard
-                .set_contents(self.output_text.clone())
-                .unwrap_or_default();
-            self.output_text.clear();
-        }
+        self.copy();
+
+        self.output_text.clear();
     }
 
     pub fn copy(&mut self) {
-        if let Ok(mut clipboard) = ClipboardContext::new() {
-            clipboard
-                .set_contents(self.output_text.clone())
-                .unwrap_or_default();
-        }
+        let Ok(mut clipboard) = ClipboardContext::new() else {
+            return;
+        };
+
+        clipboard
+            .set_contents(self.output_text.clone())
+            .unwrap_or_default();
     }
 
     pub fn paste(&mut self) {
-        if let Ok(mut clipboard) = ClipboardContext::new() {
-            self.input_text
-                .push_str(&clipboard.get_contents().unwrap_or_default());
-        }
+        let Ok(mut clipboard) = ClipboardContext::new() else {
+            return;
+        };
+
+        self.input_text
+            .push_str(&clipboard.get_contents().unwrap_or_default());
     }
 
-    pub fn quit(&mut self) {
-        self.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    pub fn quit(&self, ctx: &egui::Context) {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
+
+    fn default_line_end() -> String {
+        #[cfg(not(unix))]
+        {
+            "\r\n".to_string()
+        }
+
+        #[cfg(unix)]
+        {
+            "\n".to_string()
+        }
     }
 }
 
@@ -174,13 +191,13 @@ impl eframe::App for App {
         self.handle_serial_data();
 
         self.render_ui(ctx);
-        self.render_windows(ctx);
+        self.show_windows(ctx);
 
         ctx.request_repaint_after(Duration::from_millis(50));
     }
 }
 
-pub fn run(port: String, settings: SerialSettings) -> anyhow::Result<()> {
+pub fn run(settings: SerialSettings) -> Result<()> {
     Logger::init()?;
 
     let native_options = eframe::NativeOptions {
@@ -191,7 +208,9 @@ pub fn run(port: String, settings: SerialSettings) -> anyhow::Result<()> {
     eframe::run_native(
         "Rustcom",
         native_options,
-        Box::new(|cc| Ok(Box::new(App::new(port, settings, cc)))),
+        Box::new(|cc| Ok(Box::new(App::new(settings, cc)))),
     )
-    .map_err(|_| anyhow::anyhow!(AppError::Other))
+    .map_err(|e| anyhow!("Error during run_native: {e:?}"))?;
+
+    Ok(())
 }

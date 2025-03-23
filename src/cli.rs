@@ -76,12 +76,11 @@ fn possible_stop_bits(s: &str) -> Result<StopBits, String> {
     }
 }
 
-pub fn run() -> Result<(String, SerialSettings)> {
+pub fn run() -> Result<SerialSettings> {
     let cli = Cli::parse();
 
-    let device = cli.device.unwrap_or_default();
-
     let settings = SerialSettings {
+        port: cli.device.unwrap_or_default(),
         baud_rate: cli.baudrate.unwrap_or(115200),
         data_bits: cli.data_bits.unwrap_or(DataBits::Eight),
         parity: cli.parity.unwrap_or(Parity::None),
@@ -89,5 +88,5 @@ pub fn run() -> Result<(String, SerialSettings)> {
         stop_bits: cli.stop_bits.unwrap_or(StopBits::One),
     };
 
-    Ok((device, settings))
+    Ok(settings)
 }

@@ -15,12 +15,12 @@ fn create_menu_item(
     }
 }
 
-fn file_menu(app: &mut App, ui: &mut egui::Ui) {
-    create_menu_item(ui, "Quit", None, || app.quit());
+fn file_menu(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
+    create_menu_item(ui, "Quit", None, || app.quit(ctx));
 }
 
 fn edit_menu(app: &mut App, ui: &mut egui::Ui) {
-    create_menu_item(ui, "Cut", Some("  Ctrl+X"), || app.cut());
+    create_menu_item(ui, "Cut", Some("Ctrl+X"), || app.cut());
     create_menu_item(ui, "Copy", Some("Ctrl+C"), || app.copy());
     create_menu_item(ui, "Paste", Some("Ctrl+V"), || app.paste());
 
@@ -49,7 +49,7 @@ impl App {
             ui.style_mut().visuals.button_frame = false;
 
             ui.horizontal(|ui| {
-                ui.menu_button("File", |ui| file_menu(self, ui));
+                ui.menu_button("File", |ui| file_menu(self, ui, ctx));
                 ui.menu_button("Edit", |ui| edit_menu(self, ui));
                 ui.menu_button("UI", |ui| ui_menu(self, ui));
                 ui.menu_button("Help", |ui| help_menu(self, ui));
