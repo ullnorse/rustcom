@@ -31,19 +31,11 @@ impl Logger {
     }
 
     pub fn get_level(&self) -> Option<Level> {
-        if let Ok(level) = self.level.lock() {
-            return Some(*level);
-        }
-
-        None
+        self.level.lock().ok().as_deref().cloned()
     }
 
     pub fn get_logs(&self) -> Option<String> {
-        if let Ok(buffer) = self.buffer.lock() {
-            return Some(buffer.clone());
-        }
-
-        None
+        self.buffer.lock().ok().as_deref().cloned()
     }
 
     pub fn clear_logs(&self) {

@@ -59,7 +59,14 @@ impl App {
                             if let Some(m) = self.macros.get_macro(i) {
                                 let mut macro_copy = m.clone();
 
-                                ui.checkbox(&mut macro_copy.repeat, "");
+                                if ui.checkbox(&mut macro_copy.repeat, "").changed() {
+                                    if macro_copy.repeat {
+                                        self.macros.start_macro(i);
+                                    } else {
+                                        self.macros.stop_macro(i);
+                                    }
+                                }
+
                                 spinbox(ui, &mut macro_copy.delay, 0, u32::MAX, 10);
 
                                 if ui
