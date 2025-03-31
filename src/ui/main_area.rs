@@ -62,8 +62,9 @@ impl App {
                                     }
                                 });
 
-                                let baud_rates =
-                                    [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 1000000];
+                                let baud_rates = [
+                                    0, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 1000000,
+                                ];
                                 egui::ComboBox::from_label("Baud rate")
                                     .selected_text(self.serial_settings.baud_rate.to_string())
                                     .show_ui(ui, |ui| {
@@ -248,7 +249,7 @@ impl App {
                         {
                             if let Some(m) = self.macros.get_macro(i) {
                                 let text = m.text.clone();
-                                if let Err(e) = self.serial_send(SerialMsg::Str(text)) {
+                                if let Err(e) = self.serial_send(SerialMsg::Str(text + "\n")) {
                                     error!("Couldn't send macro: {e:?}");
                                 }
                             }

@@ -1,10 +1,13 @@
 use crate::logger::Logger;
 use crate::macros::Macros;
 use crate::serial::{SerialMainState, SerialMsg, SerialSettings};
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use clipboard::{ClipboardContext, ClipboardProvider};
+use crossbeam::channel::{Receiver, Sender, unbounded};
 use log::{error, info};
 use std::fmt::Write;
+use std::sync::atomic::Ordering;
+use std::thread;
 use std::time::Duration;
 
 pub struct App {
@@ -23,6 +26,7 @@ pub struct App {
     pub rx_cnt: usize,
 
     pub macros: Macros,
+    pub macro_channel: (Sender<String>, Receiver<String>),
     pub macros_ui_open: bool,
     pub logger_window_open: bool,
     pub about_window_open: bool,
@@ -62,6 +66,7 @@ impl App {
             tx_cnt: 0,
             rx_cnt: 0,
             macros: Macros::new(),
+            macro_channel: unbounded(),
             macros_ui_open: true,
             logger_window_open: false,
             about_window_open: false,
@@ -107,6 +112,16 @@ impl App {
         self.output_text.push_str(&output_text);
     }
 
+    fn handle_macros_data(&mut self) {
+        let Ok(data) = self.macro_channel.1.try_recv() else {
+            return;
+        };
+
+        if let Err(e) = self.serial_send(SerialMsg::Str(data)) {
+            error!("Failed to send macro data: {e:?}");
+        }
+    }
+
     pub fn send(&mut self) {
         let s = format!("{}{}", self.input_text, self.input_line_end);
         let len = s.len();
@@ -118,7 +133,7 @@ impl App {
         }
     }
 
-    pub fn serial_send(&mut self, msg: SerialMsg) -> Result<()> {
+    pub fn serial_send(&self, msg: SerialMsg) -> Result<()> {
         let Some(serial) = &self.serial else {
             bail!("Serial is not available");
         };
@@ -184,11 +199,52 @@ impl App {
             "\n".to_string()
         }
     }
+
+    pub fn start_macro(&mut self, num: usize) {
+        let Some(m) = self.macros.macros.get(num) else {
+            return;
+        };
+
+        let Some(s) = self.macros.stop_signals.get(num) else {
+            return;
+        };
+
+        let stop_signal = s.clone();
+        let macro_text = m.text.clone();
+        let delay = m.delay;
+
+        stop_signal.store(true, Ordering::SeqCst);
+
+        let sender = self.macro_channel.0.clone();
+
+        let handle = thread::spawn(move || {
+            while stop_signal.load(Ordering::SeqCst) {
+                sender.send(macro_text.clone() + "\n").ok();
+                thread::sleep(Duration::from_millis(delay as u64));
+            }
+        });
+
+        self.macros.running_threads[num] = Some(handle);
+    }
+
+    pub fn stop_macro(&mut self, num: usize) {
+        let Some(stop_signal) = self.macros.stop_signals.get(num) else {
+            return;
+        };
+
+        let Some(handle) = self.macros.running_threads.get_mut(num) else {
+            return;
+        };
+
+        stop_signal.store(false, Ordering::SeqCst);
+        handle.take();
+    }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.handle_serial_data();
+        self.handle_macros_data();
 
         self.render_ui(ctx);
         self.show_windows(ctx);

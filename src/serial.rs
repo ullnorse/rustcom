@@ -1,12 +1,13 @@
-use anyhow::{anyhow, Result};
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use anyhow::{Result, anyhow};
+use crossbeam::channel::{Receiver, Sender, unbounded};
 use log::error;
-use serialport5::{ClearBuffer, SerialPortBuilder};
+use serialport::ClearBuffer;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 pub enum SerialMsg {
     Str(String),
@@ -23,14 +24,14 @@ pub enum DataBits {
     Eight,
 }
 
-impl From<DataBits> for serialport5::DataBits {
+impl From<DataBits> for serialport::DataBits {
     fn from(value: DataBits) -> Self {
         use DataBits::*;
         match value {
-            Five => serialport5::DataBits::Five,
-            Six => serialport5::DataBits::Six,
-            Seven => serialport5::DataBits::Seven,
-            Eight => serialport5::DataBits::Eight,
+            Five => serialport::DataBits::Five,
+            Six => serialport::DataBits::Six,
+            Seven => serialport::DataBits::Seven,
+            Eight => serialport::DataBits::Eight,
         }
     }
 }
@@ -59,13 +60,13 @@ pub enum FlowControl {
     Hardware,
 }
 
-impl From<FlowControl> for serialport5::FlowControl {
+impl From<FlowControl> for serialport::FlowControl {
     fn from(value: FlowControl) -> Self {
         use FlowControl::*;
         match value {
-            None => serialport5::FlowControl::None,
-            Software => serialport5::FlowControl::Software,
-            Hardware => serialport5::FlowControl::Hardware,
+            None => serialport::FlowControl::None,
+            Software => serialport::FlowControl::Software,
+            Hardware => serialport::FlowControl::Hardware,
         }
     }
 }
@@ -91,11 +92,11 @@ pub enum StopBits {
     Two,
 }
 
-impl From<StopBits> for serialport5::StopBits {
+impl From<StopBits> for serialport::StopBits {
     fn from(value: StopBits) -> Self {
         match value {
-            StopBits::One => serialport5::StopBits::One,
-            StopBits::Two => serialport5::StopBits::Two,
+            StopBits::One => serialport::StopBits::One,
+            StopBits::Two => serialport::StopBits::Two,
         }
     }
 }
@@ -121,12 +122,12 @@ pub enum Parity {
     Even,
 }
 
-impl From<Parity> for serialport5::Parity {
+impl From<Parity> for serialport::Parity {
     fn from(value: Parity) -> Self {
         match value {
-            Parity::None => serialport5::Parity::None,
-            Parity::Odd => serialport5::Parity::Odd,
-            Parity::Even => serialport5::Parity::Even,
+            Parity::None => serialport::Parity::None,
+            Parity::Odd => serialport::Parity::Odd,
+            Parity::Even => serialport::Parity::Even,
         }
     }
 }
@@ -202,14 +203,14 @@ pub struct SerialMainState {
 
 impl SerialMainState {
     pub fn new(settings: SerialSettings) -> Result<Self> {
-        let mut write_port = SerialPortBuilder::new()
+        let mut write_port = serialport::new(settings.port, 0)
             .baud_rate(settings.baud_rate)
             .data_bits(settings.data_bits.into())
             .stop_bits(settings.stop_bits.into())
             .parity(settings.parity.into())
             .flow_control(settings.flow_control.into())
-            .read_timeout(Some(std::time::Duration::from_millis(200)))
-            .open(settings.port)?;
+            .timeout(Duration::from_millis(200))
+            .open()?;
 
         write_port.clear(ClearBuffer::All)?;
 

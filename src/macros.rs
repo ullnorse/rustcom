@@ -3,12 +3,8 @@ use std::{
     array,
     io::Write,
     path::Path,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    thread::{self, JoinHandle},
-    time::Duration,
+    sync::{Arc, atomic::AtomicBool},
+    thread::JoinHandle,
 };
 
 #[derive(Clone, Debug)]
@@ -29,10 +25,10 @@ impl Default for Macro {
 }
 
 pub struct Macros {
-    macros: [Macro; Macros::NUM_OF_MACROS],
-    config_file: String,
-    running_threads: [Option<JoinHandle<()>>; Macros::NUM_OF_MACROS],
-    stop_signals: [Arc<AtomicBool>; Macros::NUM_OF_MACROS],
+    pub macros: [Macro; Macros::NUM_OF_MACROS],
+    pub config_file: String,
+    pub running_threads: [Option<JoinHandle<()>>; Macros::NUM_OF_MACROS],
+    pub stop_signals: [Arc<AtomicBool>; Macros::NUM_OF_MACROS],
 }
 
 impl Default for Macros {
@@ -102,43 +98,5 @@ impl Macros {
         {
             macro_slot.text = line.trim().to_string();
         }
-    }
-
-    pub fn start_macro(&mut self, num: usize) {
-        let Some(m) = self.macros.get(num) else {
-            return;
-        };
-
-        let Some(s) = self.stop_signals.get(num) else {
-            return;
-        };
-
-        let stop_signal = s.clone();
-        let macro_text = m.text.clone();
-        let delay = m.delay;
-
-        stop_signal.store(true, Ordering::SeqCst);
-
-        let handle = thread::spawn(move || {
-            while stop_signal.load(Ordering::SeqCst) {
-                println!("Sending macro text: {macro_text}");
-                thread::sleep(Duration::from_millis(delay as u64));
-            }
-        });
-
-        self.running_threads[num] = Some(handle);
-    }
-
-    pub fn stop_macro(&mut self, num: usize) {
-        let Some(stop_signal) = self.stop_signals.get(num) else {
-            return;
-        };
-
-        let Some(handle) = self.running_threads.get_mut(num) else {
-            return;
-        };
-
-        stop_signal.store(false, Ordering::SeqCst);
-        handle.take();
     }
 }

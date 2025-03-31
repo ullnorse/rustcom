@@ -61,9 +61,9 @@ impl App {
 
                                 if ui.checkbox(&mut macro_copy.repeat, "").changed() {
                                     if macro_copy.repeat {
-                                        self.macros.start_macro(i);
+                                        self.start_macro(i);
                                     } else {
-                                        self.macros.stop_macro(i);
+                                        self.stop_macro(i);
                                     }
                                 }
 
@@ -78,7 +78,7 @@ impl App {
                                 {
                                     let text = macro_copy.text.clone();
 
-                                    if let Err(e) = self.serial_send(SerialMsg::Str(text)) {
+                                    if let Err(e) = self.serial_send(SerialMsg::Str(text + "\n")) {
                                         error!("Couldn't send macro text: {e:?}");
                                     }
                                 }
