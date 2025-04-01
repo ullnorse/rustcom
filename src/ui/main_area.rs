@@ -1,4 +1,6 @@
+use directories::BaseDirs;
 use log::error;
+use rfd::FileDialog;
 
 use crate::app::App;
 use crate::macros::Macros;
@@ -33,6 +35,39 @@ impl App {
                                 );
                             ui.checkbox(&mut self.auto_scroll, "Auto scroll")
                                 .on_hover_text_at_pointer("Auto scroll receive box to the end");
+
+                            ui.horizontal(|ui| {
+                                ui.label("Log file:");
+
+                                let selectable_text = |ui: &mut egui::Ui, mut text: &str| {
+                                    ui.add(egui::TextEdit::singleline(&mut text));
+                                };
+
+                                selectable_text(ui, &mut self.log_file_name);
+
+                                if ui
+                                    .button("...")
+                                    .on_hover_text_at_pointer("Choose log file via file chooser")
+                                    .clicked()
+                                {
+                                    if let Some(path) = BaseDirs::new()
+                                        .and_then(|dirs| {
+                                            FileDialog::new()
+                                                .set_title("Open")
+                                                .set_directory(dirs.home_dir())
+                                                .pick_file()
+                                        })
+                                        .and_then(|path| path.into_os_string().into_string().ok())
+                                    {
+                                        self.log_file_name = path;
+                                    }
+                                }
+
+                                ui.checkbox(&mut self.log_file_append, "Append")
+                                    .on_hover_text_at_pointer(
+                                        "Appends to an existing log file instead of truncating it",
+                                    );
+                            });
                         });
 
                         ui.add_space(ui.available_width() - 180f32);
@@ -214,6 +249,19 @@ impl App {
                         }
 
                         ui.checkbox(&mut self.hex_output, "Hex output");
+
+                        ui.add_enabled_ui(self.serial.is_some(), |ui| {
+                            if ui
+                                .checkbox(&mut self.logging_to_file_started, "Log file")
+                                .changed()
+                            {
+                                if self.logging_to_file_started {
+                                    self.start_recording_thread();
+                                } else {
+                                    self.stop_recording_thread();
+                                }
+                            }
+                        });
                     });
 
                     let selectable_text = |ui: &mut egui::Ui, mut text: &str| {

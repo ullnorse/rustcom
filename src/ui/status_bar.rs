@@ -24,9 +24,8 @@ impl App {
                     self.serial_settings.flow_control,
                     self.tx_cnt,
                     self.rx_cnt,
-                    //self.recording_started
-                    if false {
-                        format!("Logging to: {}", "") // self.log_file_name
+                    if self.logging_to_file_started {
+                        format!("Logging to: {}", self.log_file_name)
                     } else {
                         String::new()
                     }

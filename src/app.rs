@@ -4,9 +4,13 @@ use crate::serial::{SerialMainState, SerialMsg, SerialSettings};
 use anyhow::{Result, anyhow, bail};
 use clipboard::{ClipboardContext, ClipboardProvider};
 use crossbeam::channel::{Receiver, Sender, unbounded};
+use directories::BaseDirs;
 use log::{error, info};
-use std::fmt::Write;
-use std::sync::atomic::Ordering;
+use std::fmt::Write as _;
+use std::fs::{File, OpenOptions};
+use std::io::Write;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -31,6 +35,12 @@ pub struct App {
     pub logger_window_open: bool,
     pub about_window_open: bool,
     pub macros_window_open: bool,
+
+    pub logging_to_file_started: bool,
+    pub log_file_append: bool,
+    pub log_file_name: String,
+    pub logging_thread_stop_sig: Arc<AtomicBool>,
+    pub logging_sender: Option<Sender<String>>,
 }
 
 impl App {
@@ -54,6 +64,14 @@ impl App {
             serial_settings.flow_control,
         );
 
+        let log_file_name = BaseDirs::new()
+            .and_then(|dirs| {
+                let mut path = dirs.home_dir().to_path_buf();
+                path.push("rustcom.log");
+                path.to_str().map(String::from)
+            })
+            .unwrap_or_default();
+
         Self {
             serial_settings: settings,
             available_ports,
@@ -71,6 +89,11 @@ impl App {
             logger_window_open: false,
             about_window_open: false,
             macros_window_open: false,
+            logging_to_file_started: false,
+            log_file_append: false,
+            log_file_name,
+            logging_thread_stop_sig: Arc::new(AtomicBool::new(false)),
+            logging_sender: None,
         }
     }
 
@@ -110,6 +133,14 @@ impl App {
         };
 
         self.output_text.push_str(&output_text);
+
+        if self.logging_to_file_started {
+            let Some(sender) = &self.logging_sender else {
+                return;
+            };
+
+            let _ = sender.send(output_text);
+        }
     }
 
     fn handle_macros_data(&mut self) {
@@ -156,6 +187,7 @@ impl App {
 
     pub fn disconnect(&mut self) {
         self.serial.take();
+        self.stop_recording_thread();
         info!("Closed serial port: {}", self.serial_settings.port);
     }
 
@@ -238,6 +270,49 @@ impl App {
 
         stop_signal.store(false, Ordering::SeqCst);
         handle.take();
+    }
+
+    pub fn start_recording_thread(&mut self) {
+        let log_file_name = self.log_file_name.clone();
+        let stop_sig = self.logging_thread_stop_sig.clone();
+        stop_sig.store(true, Ordering::SeqCst);
+        let log_file_append = self.log_file_append;
+        let (sender, receiver) = unbounded();
+
+        self.logging_sender = Some(sender);
+
+        thread::spawn(move || {
+            let file_result = if log_file_append {
+                OpenOptions::new()
+                    .append(true)
+                    .create(true)
+                    .open(&log_file_name)
+            } else {
+                File::create(&log_file_name)
+            };
+
+            let mut file = match file_result {
+                Ok(file) => file,
+                Err(e) => {
+                    error!("Error opening file for logging: {e:?}");
+                    return;
+                }
+            };
+
+            while stop_sig.load(Ordering::SeqCst) {
+                if let Ok(s) = receiver.recv() {
+                    if let Err(e) = file.write_all(s.as_bytes()) {
+                        error!("Can't write to log file: {e:?}");
+                    }
+                }
+            }
+        });
+    }
+
+    pub fn stop_recording_thread(&mut self) {
+        self.logging_thread_stop_sig.store(false, Ordering::SeqCst);
+        self.logging_sender.take();
+        self.logging_to_file_started = false;
     }
 }
 
