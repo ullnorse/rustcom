@@ -1,12 +1,12 @@
 use crate::logger::Logger;
 use crate::macros::Macros;
 use crate::serial::{SerialMainState, SerialMsg, SerialSettings};
+use crate::util;
 use anyhow::{Result, anyhow, bail};
 use clipboard::{ClipboardContext, ClipboardProvider};
 use crossbeam::channel::{Receiver, Sender, unbounded};
 use directories::BaseDirs;
 use log::{error, info};
-use std::fmt::Write as _;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::sync::Arc;
@@ -109,48 +109,63 @@ impl App {
         self.show_macros_window(ctx);
     }
 
-    fn handle_serial_data(&mut self) {
+    fn handle_serial_data(&mut self) -> Result<()> {
         let Some(serial) = &self.serial else {
-            return;
+            return Ok(());
         };
-
+    
         let Some(data) = serial.recv() else {
-            return;
+            return Ok(());
         };
-
+    
         self.rx_cnt += data.len();
-
-        let output_text = if self.hex_output {
-            let mut hex_string = String::new();
-            for byte in data.as_bytes() {
-                if let Err(e) = write!(hex_string, "{:02X} ", byte) {
-                    error!("Error writing hex string: {e:?}");
-                }
-            }
-            hex_string
-        } else {
-            data
-        };
-
-        self.output_text.push_str(&output_text);
-
+    
+        let output = self.prepare_output(data)?;
+    
+        self.send_data_to_output_text(&output);
+    
         if self.logging_to_file_started {
-            let Some(sender) = &self.logging_sender else {
-                return;
-            };
+            self.send_data_to_logging_thread(output)?
+        }
+    
+        Ok(())
+    }
 
-            let _ = sender.send(output_text);
+    fn send_data_to_output_text(&mut self, output: &str) {
+        self.output_text.push_str(output);
+    }
+    
+    fn send_data_to_logging_thread(&mut self, data: String) -> Result<()> {
+        let sender = self.logging_sender.as_ref().ok_or_else(|| anyhow!("Logging sender not initialized"))?;
+    
+        sender.send(data).map_err(|e| anyhow!("Failed to send data to logging thread: {}", e))?;
+    
+        Ok(())
+    }
+
+    fn prepare_output(&self, data: String) -> Result<String> {
+        if self.hex_output {
+            let mut hex_string = String::new();
+            util::format_hex(data.as_bytes(), &mut hex_string)?;
+            Ok(hex_string)
+        } else {
+            Ok(data)
         }
     }
 
-    fn handle_macros_data(&mut self) {
-        let Ok(data) = self.macro_channel.1.try_recv() else {
-            return;
-        };
-
-        if let Err(e) = self.serial_send(SerialMsg::Str(data)) {
-            error!("Failed to send macro data: {e:?}");
+    fn handle_macros_data(&mut self) -> Result<()> {
+        match self.macro_channel.1.try_recv() {
+            Ok(data) => {
+                self.serial_send(SerialMsg::Str(data))?;
+            }
+            Err(crossbeam::channel::TryRecvError::Empty) => {
+                return Ok(());
+            }
+            Err(crossbeam::channel::TryRecvError::Disconnected) => {
+                bail!("Macro channel disconnected")
+            }
         }
+        Ok(())
     }
 
     pub fn send(&mut self) {
@@ -314,17 +329,29 @@ impl App {
         self.logging_sender.take();
         self.logging_to_file_started = false;
     }
+
+    pub fn update(&mut self, ctx: &egui::Context) -> Result<()> {
+        self.handle_serial_data()?;
+        self.handle_macros_data()?;
+        
+        self.render_ui(ctx);
+        self.show_windows(ctx);
+
+        Ok(())
+    }
+
+    pub fn set_target_fps(ctx: &egui::Context, fps: u32) {
+        ctx.request_repaint_after(util::calculate_repaint_duration(fps));
+    }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.handle_serial_data();
-        self.handle_macros_data();
+        if let Err(e) = self.update(ctx) {
+            error!("Error during frame update: {e:?}");
+        }
 
-        self.render_ui(ctx);
-        self.show_windows(ctx);
-
-        ctx.request_repaint_after(Duration::from_millis(50));
+        App::set_target_fps(ctx, 60);
     }
 }
 
