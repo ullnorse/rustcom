@@ -6,7 +6,7 @@ use anyhow::{Result, anyhow, bail};
 use clipboard::{ClipboardContext, ClipboardProvider};
 use crossbeam::channel::{Receiver, Sender, unbounded};
 use directories::BaseDirs;
-use log::{error, info};
+use log::error;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::sync::Arc;
@@ -77,7 +77,7 @@ impl App {
             available_ports,
             serial: None,
             input_text: String::new(),
-            input_line_end: Self::default_line_end(),
+            input_line_end: util::default_line_end().to_string(),
             output_text: String::new(),
             auto_scroll: true,
             hex_output: false,
@@ -113,33 +113,38 @@ impl App {
         let Some(serial) = &self.serial else {
             return Ok(());
         };
-    
+
         let Some(data) = serial.recv() else {
             return Ok(());
         };
-    
+
         self.rx_cnt += data.len();
-    
+
         let output = self.prepare_output(data)?;
-    
+
         self.send_data_to_output_text(&output);
-    
+
         if self.logging_to_file_started {
             self.send_data_to_logging_thread(output)?
         }
-    
+
         Ok(())
     }
 
     fn send_data_to_output_text(&mut self, output: &str) {
         self.output_text.push_str(output);
     }
-    
+
     fn send_data_to_logging_thread(&mut self, data: String) -> Result<()> {
-        let sender = self.logging_sender.as_ref().ok_or_else(|| anyhow!("Logging sender not initialized"))?;
-    
-        sender.send(data).map_err(|e| anyhow!("Failed to send data to logging thread: {}", e))?;
-    
+        let sender = self
+            .logging_sender
+            .as_ref()
+            .ok_or_else(|| anyhow!("Logging sender not initialized"))?;
+
+        sender
+            .send(data)
+            .map_err(|e| anyhow!("Failed to send data to logging thread: {}", e))?;
+
         Ok(())
     }
 
@@ -187,23 +192,21 @@ impl App {
         serial.send(msg)
     }
 
-    pub fn connect(&mut self) {
-        match SerialMainState::new(self.serial_settings.clone()) {
-            Ok(serial) => {
-                self.serial = Some(serial);
-                info!("Opened serial port {}", self.serial_settings.port);
-            }
-            Err(e) => error!(
-                "Couldn't open serial port {}: {e:?}",
-                self.serial_settings.port
-            ),
-        }
+    pub fn connect(&mut self) -> Result<()> {
+        SerialMainState::new(self.serial_settings.clone())
+            .map(|serial| self.serial = Some(serial))
+            .map_err(|e| {
+                anyhow!(
+                    "Couldn't open serial port {}: {e:?}",
+                    self.serial_settings.port
+                )
+            })
     }
 
-    pub fn disconnect(&mut self) {
+    pub fn disconnect(&mut self) -> Result<()> {
         self.serial.take();
         self.stop_recording_thread();
-        info!("Closed serial port: {}", self.serial_settings.port);
+        Ok(())
     }
 
     pub fn cut(&mut self) {
@@ -213,38 +216,22 @@ impl App {
     }
 
     pub fn copy(&mut self) {
-        let Ok(mut clipboard) = ClipboardContext::new() else {
-            return;
-        };
-
-        clipboard
-            .set_contents(self.output_text.clone())
-            .unwrap_or_default();
+        if let Ok(mut clipboard) = ClipboardContext::new() {
+            clipboard
+                .set_contents(self.output_text.clone())
+                .unwrap_or_default();
+        }
     }
 
     pub fn paste(&mut self) {
-        let Ok(mut clipboard) = ClipboardContext::new() else {
-            return;
-        };
-
-        self.input_text
-            .push_str(&clipboard.get_contents().unwrap_or_default());
+        if let Ok(mut clipboard) = ClipboardContext::new() {
+            self.input_text
+                .push_str(&clipboard.get_contents().unwrap_or_default());
+        }
     }
 
     pub fn quit(&self, ctx: &egui::Context) {
         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-    }
-
-    fn default_line_end() -> String {
-        #[cfg(not(unix))]
-        {
-            "\r\n".to_string()
-        }
-
-        #[cfg(unix)]
-        {
-            "\n".to_string()
-        }
     }
 
     pub fn start_macro(&mut self, num: usize) {
@@ -333,7 +320,7 @@ impl App {
     pub fn update(&mut self, ctx: &egui::Context) -> Result<()> {
         self.handle_serial_data()?;
         self.handle_macros_data()?;
-        
+
         self.render_ui(ctx);
         self.show_windows(ctx);
 

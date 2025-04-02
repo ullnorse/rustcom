@@ -1,5 +1,5 @@
 use directories::BaseDirs;
-use log::error;
+use log::{error, info};
 use rfd::FileDialog;
 
 use crate::app::App;
@@ -18,13 +18,24 @@ impl App {
                                     .add_sized((70f32, 10f32), egui::Button::new("Disconnect"))
                                     .clicked()
                                 {
-                                    self.disconnect();
+                                    match self.disconnect() {
+                                        Ok(_) => info!(
+                                            "Closed serial port: {}",
+                                            self.serial_settings.port
+                                        ),
+                                        Err(e) => {
+                                            error!("Error disconnecting from serial port: {e:?}")
+                                        }
+                                    }
                                 }
                             } else if ui
                                 .add_sized((70f32, 10f32), egui::Button::new("Connect"))
                                 .clicked()
                             {
-                                self.connect();
+                                match self.connect() {
+                                    Ok(_) => info!("Opened serial port"),
+                                    Err(e) => error!("Error connecting to serial port: {e:?}"),
+                                }
                             }
                         });
 

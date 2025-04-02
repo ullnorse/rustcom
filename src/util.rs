@@ -16,6 +16,18 @@ pub fn calculate_repaint_duration(fps: u32) -> Duration {
     Duration::from_millis(milliseconds_per_frame as u64)
 }
 
+pub fn default_line_end() -> &'static str {
+    #[cfg(not(unix))]
+    {
+        "\r\n"
+    }
+
+    #[cfg(unix)]
+    {
+        "\n"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -48,20 +60,30 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_repaint_duration_zero_fps() {
+    fn test_calculate_repaint_duration() {
+        //zero fps
         assert_eq!(calculate_repaint_duration(0), Duration::from_secs(u64::MAX));
-    }
 
-    #[test]
-    fn test_calculate_repaint_duration_common_fps() {
+        //common fps
         assert_eq!(calculate_repaint_duration(30), Duration::from_millis(33));
         assert_eq!(calculate_repaint_duration(60), Duration::from_millis(16));
         assert_eq!(calculate_repaint_duration(120), Duration::from_millis(8));
+
+        //uncommon fps
+        assert_eq!(calculate_repaint_duration(25), Duration::from_millis(40));
+        assert_eq!(calculate_repaint_duration(144), Duration::from_millis(6));
     }
 
     #[test]
-    fn test_calculate_repaint_duration_uncommon_fps() {
-        assert_eq!(calculate_repaint_duration(25), Duration::from_millis(40));
-        assert_eq!(calculate_repaint_duration(144), Duration::from_millis(6));
+    fn test_default_line_end() {
+        #[cfg(not(unix))]
+        {
+            assert_eq!(default_line_end(), "\r\n")
+        }
+
+        #[cfg(unix)]
+        {
+            assert_eq!(default_line_end(), "\n")
+        }
     }
 }
