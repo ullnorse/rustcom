@@ -3,6 +3,7 @@ use crossbeam::channel::{Receiver, Sender, unbounded};
 use log::error;
 use serialport::ClearBuffer;
 use std::io::{Read, Write};
+use std::mem;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -209,13 +210,12 @@ impl SerialMainState {
             .stop_bits(settings.stop_bits.into())
             .parity(settings.parity.into())
             .flow_control(settings.flow_control.into())
-            .timeout(Duration::from_millis(200))
+            .timeout(Duration::from_millis(50))
             .open()?;
 
         write_port.clear(ClearBuffer::All)?;
 
         let mut read_port = write_port.try_clone()?;
-        let mut serial_buf: Vec<u8> = vec![0; 1000];
 
         let (rx_sender, rx_receiver) = unbounded::<String>();
         let (tx_sender, tx_receiver) = unbounded::<SerialMsg>();
@@ -224,17 +224,33 @@ impl SerialMainState {
         let rx_thread_running_clone = rx_stop_signal.clone();
 
         let rx_join_handle = std::thread::spawn(move || {
-            rx_thread_running_clone.store(true, Ordering::Relaxed);
+            rx_thread_running_clone.store(true, Ordering::SeqCst);
+            let mut buffer = Vec::new();
+            let mut temp_buf = [0; 64];
 
-            while rx_thread_running_clone.load(Ordering::Relaxed) {
-                match read_port.read(serial_buf.as_mut_slice()) {
-                    Ok(t) => {
-                        rx_sender
-                            .send(String::from_utf8_lossy(&serial_buf[..t]).to_string())
-                            .expect("TODO: report error to main");
+            while rx_thread_running_clone.load(Ordering::SeqCst) {
+                match read_port.read(&mut temp_buf) {
+                    Ok(n) => {
+                        buffer.extend_from_slice(&temp_buf[..n]);
+
+                        while let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
+                            let line = buffer.drain(..=pos).collect::<Vec<u8>>();
+                            if let Ok(string) = String::from_utf8(line) {
+                                let _ = rx_sender.send(string);
+                            }
+                        }
                     }
-                    Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => (),
-                    Err(e) => eprintln!("{e:?}"),
+                    Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                        if !buffer.is_empty() {
+                            if let Ok(s) = String::from_utf8(mem::take(&mut buffer)) {
+                                let _ = rx_sender.send(s);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("RX thread error: {e:?}");
+                        return;
+                    }
                 }
             }
         });
@@ -243,9 +259,7 @@ impl SerialMainState {
             while let Ok(msg) = tx_receiver.recv() {
                 match msg {
                     SerialMsg::Str(s) => {
-                        write_port
-                            .write_all(s.as_bytes())
-                            .expect("TODO: report error to main");
+                        let _ = write_port.write_all(s.as_bytes());
                     }
                     SerialMsg::File(_) => {}
                     SerialMsg::Close => break,
@@ -265,8 +279,8 @@ impl SerialMainState {
         Ok(self.tx_sender.send(msg)?)
     }
 
-    pub fn recv(&self) -> Option<String> {
-        self.rx_receiver.try_recv().ok()
+    pub fn recv(&self) -> Result<String> {
+        Ok(self.rx_receiver.try_recv()?)
     }
 
     pub fn available_ports() -> Vec<String> {

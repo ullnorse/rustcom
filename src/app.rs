@@ -114,7 +114,7 @@ impl App {
             return Ok(());
         };
 
-        let Some(data) = serial.recv() else {
+        let Ok(data) = serial.recv() else {
             return Ok(());
         };
 
@@ -327,7 +327,7 @@ impl App {
         Ok(())
     }
 
-    pub fn set_target_fps(ctx: &egui::Context, fps: u32) {
+    pub fn request_repaint_at_fps(ctx: &egui::Context, fps: u32) {
         ctx.request_repaint_after(util::calculate_repaint_duration(fps));
     }
 }
@@ -338,7 +338,7 @@ impl eframe::App for App {
             error!("Error during frame update: {e:?}");
         }
 
-        App::set_target_fps(ctx, 60);
+        App::request_repaint_at_fps(ctx, 60);
     }
 }
 
