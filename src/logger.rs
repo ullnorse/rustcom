@@ -1,13 +1,65 @@
 use anyhow::Result;
 use log::Level;
-use std::sync::{LazyLock, Mutex};
+use std::convert::TryFrom;
+use std::sync::{
+    LazyLock, Mutex,
+    atomic::{AtomicUsize, Ordering},
+};
 
 pub static LOGGER: LazyLock<Logger> = LazyLock::new(Logger::new);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum LogLevelUsize {
+    Trace = 5,
+    Debug = 4,
+    Info = 3,
+    Warn = 2,
+    Error_ = 1,
+}
+
+impl From<Level> for LogLevelUsize {
+    fn from(level: Level) -> Self {
+        match level {
+            Level::Trace => LogLevelUsize::Trace,
+            Level::Debug => LogLevelUsize::Debug,
+            Level::Info => LogLevelUsize::Info,
+            Level::Warn => LogLevelUsize::Warn,
+            Level::Error => LogLevelUsize::Error_,
+        }
+    }
+}
+
+impl From<LogLevelUsize> for Level {
+    fn from(level: LogLevelUsize) -> Self {
+        match level {
+            LogLevelUsize::Trace => Level::Trace,
+            LogLevelUsize::Debug => Level::Debug,
+            LogLevelUsize::Info => Level::Info,
+            LogLevelUsize::Warn => Level::Warn,
+            LogLevelUsize::Error_ => Level::Error,
+        }
+    }
+}
+
+impl TryFrom<usize> for LogLevelUsize {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        match value {
+            5 => Ok(LogLevelUsize::Trace),
+            4 => Ok(LogLevelUsize::Debug),
+            3 => Ok(LogLevelUsize::Info),
+            2 => Ok(LogLevelUsize::Warn),
+            1 => Ok(LogLevelUsize::Error_),
+            _ => Err(()),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Logger {
     buffer: Mutex<String>,
-    level: Mutex<Level>,
+    level: AtomicUsize,
 }
 
 impl Logger {
@@ -20,18 +72,18 @@ impl Logger {
     fn new() -> Self {
         Self {
             buffer: Mutex::new(String::new()),
-            level: Mutex::new(Level::Info),
+            level: AtomicUsize::new(LogLevelUsize::Info as usize),
         }
     }
 
     pub fn set_level(&self, level: Level) {
-        if let Ok(mut log_level) = self.level.lock() {
-            *log_level = level;
-        }
+        self.level
+            .store(LogLevelUsize::from(level) as usize, Ordering::Relaxed);
     }
 
     pub fn get_level(&self) -> Option<Level> {
-        self.level.lock().ok().as_deref().cloned()
+        let level_usize = self.level.load(Ordering::Relaxed);
+        LogLevelUsize::try_from(level_usize).ok().map(Level::from)
     }
 
     pub fn get_logs(&self) -> Option<String> {
@@ -47,11 +99,9 @@ impl Logger {
 
 impl log::Log for Logger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        if let Ok(level) = self.level.lock() {
-            return metadata.level() <= *level;
-        }
-
-        false
+        let current_level = self.level.load(Ordering::Relaxed);
+        let metadata_level = LogLevelUsize::from(metadata.level()) as usize;
+        metadata_level <= current_level
     }
 
     fn log(&self, record: &log::Record) {

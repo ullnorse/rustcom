@@ -41,11 +41,14 @@ pub struct App {
     pub log_file_name: String,
     pub logging_thread_stop_sig: Arc<AtomicBool>,
     pub logging_sender: Option<Sender<String>>,
+    pub clipboard: ClipboardContext,
 }
 
 impl App {
-    pub fn new(serial_settings: SerialSettings, cc: &eframe::CreationContext) -> Self {
-        cc.egui_ctx.set_theme(egui::Theme::Light);
+    pub fn new(serial_settings: SerialSettings, cc: Option<&eframe::CreationContext>) -> Self {
+        let egui_ctx = egui::Context::default();
+        let egui_ctx = cc.map(|cc| &cc.egui_ctx).unwrap_or(&egui_ctx);
+        egui_ctx.set_theme(egui::Theme::Light);
 
         let available_ports = SerialMainState::available_ports();
         let selected_port = serial_settings
@@ -94,6 +97,7 @@ impl App {
             log_file_name,
             logging_thread_stop_sig: Arc::new(AtomicBool::new(false)),
             logging_sender: None,
+            clipboard: ClipboardContext::new().unwrap(),
         }
     }
 
@@ -207,27 +211,6 @@ impl App {
         self.serial.take();
         self.stop_recording_thread();
         Ok(())
-    }
-
-    pub fn cut(&mut self) {
-        self.copy();
-
-        self.output_text.clear();
-    }
-
-    pub fn copy(&mut self) {
-        if let Ok(mut clipboard) = ClipboardContext::new() {
-            clipboard
-                .set_contents(self.output_text.clone())
-                .unwrap_or_default();
-        }
-    }
-
-    pub fn paste(&mut self) {
-        if let Ok(mut clipboard) = ClipboardContext::new() {
-            self.input_text
-                .push_str(&clipboard.get_contents().unwrap_or_default());
-        }
     }
 
     pub fn quit(&self, ctx: &egui::Context) {
@@ -353,7 +336,7 @@ pub fn run(settings: SerialSettings) -> Result<()> {
     eframe::run_native(
         "Rustcom",
         native_options,
-        Box::new(|cc| Ok(Box::new(App::new(settings, cc)))),
+        Box::new(|cc| Ok(Box::new(App::new(settings, Some(cc))))),
     )
     .map_err(|e| anyhow!("Error during run_native: {e:?}"))?;
 

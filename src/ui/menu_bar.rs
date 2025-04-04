@@ -20,9 +20,9 @@ fn file_menu(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
 }
 
 fn edit_menu(app: &mut App, ui: &mut egui::Ui) {
-    create_menu_item(ui, "Cut", Some("Ctrl+X"), || app.cut());
-    create_menu_item(ui, "Copy", Some("Ctrl+C"), || app.copy());
-    create_menu_item(ui, "Paste", Some("Ctrl+V"), || app.paste());
+    create_menu_item(ui, "Cut", Some("Ctrl+X"), || app.cut().unwrap());
+    create_menu_item(ui, "Copy", Some("Ctrl+C"), || app.copy().unwrap());
+    create_menu_item(ui, "Paste", Some("Ctrl+V"), || app.paste().unwrap());
 
     ui.separator();
 
