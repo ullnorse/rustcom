@@ -1,19 +1,25 @@
-[workspace]
-members = [
-    "base",
-    "gui",
-    "tui",
-    "rustcom"
-]
+[package]
+name = "rustcom"
+version = "0.1.0"
+edition = "2024"
 
-resolver = "2"
+[dependencies]
+egui = "0.31.1"
+eframe = "0.31.1"
+egui_dock = "0.16.0"
+crossbeam = "0.8.4"
+anyhow = "1"
+thiserror = "2"
+clipboard = "0.5.0"
+log = "0.4.26"
+clap = {version = "4.5.32", features = ["derive"]}
+serialport = "4.7.1"
+rfd = "0.15.3"
+directories = "6.0.0"
+open = "5.3.2"
 
-[workspace.dependencies]
-base = { path = "base" }
-gui = { path = "gui" }
-tui = { path = "tui" }
-rustcom = { path = "rustcom" }
+# [lints.rust]
+# unused_qualifications = "warn"
 
-anyhow = "1.0"
-log = "0.4"
-env_logger = "0.11"
+# [lints.clippy]
+# pedantic = { level = "warn", priority = -1 }
