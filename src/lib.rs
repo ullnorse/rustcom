@@ -5,15 +5,16 @@ pub mod logger;
 pub mod serial;
 pub mod ui;
 pub mod util;
+pub mod error;
 
-use crate::{app::App, logger::Logger};
-use anyhow::{Result, anyhow};
+use crate::app::App;
 use eframe::egui::ViewportBuilder;
+use crate::error::Result;
 
 pub fn run() -> Result<()> {
-    Logger::init()?;
+    logger::init()?;
 
-    let settings = cli::run()?;
+    let settings = cli::run();
 
     let native_options = eframe::NativeOptions {
         viewport: ViewportBuilder::default().with_inner_size([800f32, 800f32]),
@@ -24,8 +25,7 @@ pub fn run() -> Result<()> {
         "Rustcom",
         native_options,
         Box::new(|cc| Ok(Box::new(App::new(settings, Some(cc))))),
-    )
-    .map_err(|e| anyhow!("Error during run_native: {e:?}"))?;
+    )?;
 
     Ok(())
 }

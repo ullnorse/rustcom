@@ -1,5 +1,4 @@
 use crate::serial::{DataBits, FlowControl, Parity, SerialSettings, StopBits};
-use anyhow::Result;
 use clap::Parser;
 
 #[derive(Parser)]
@@ -76,17 +75,15 @@ fn possible_stop_bits(s: &str) -> Result<StopBits, String> {
     }
 }
 
-pub fn run() -> Result<SerialSettings> {
+pub fn run() -> SerialSettings {
     let cli = Cli::parse();
 
-    let settings = SerialSettings {
+    SerialSettings {
         port: cli.device.unwrap_or_default(),
         baud_rate: cli.baudrate.unwrap_or(115200),
         data_bits: cli.data_bits.unwrap_or(DataBits::Eight),
         parity: cli.parity.unwrap_or(Parity::None),
         flow_control: cli.flow_control.unwrap_or(FlowControl::None),
         stop_bits: cli.stop_bits.unwrap_or(StopBits::One),
-    };
-
-    Ok(settings)
+    }
 }

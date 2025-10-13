@@ -1,12 +1,18 @@
-use anyhow::Result;
 use log::Level;
 use std::convert::TryFrom;
 use std::sync::{
     LazyLock, Mutex,
     atomic::{AtomicUsize, Ordering},
 };
+use crate::error::Result;
 
 pub static LOGGER: LazyLock<Logger> = LazyLock::new(Logger::new);
+
+pub fn init() -> Result<()> {
+    log::set_logger(&*LOGGER)?;
+    log::set_max_level(log::LevelFilter::Trace);
+    Ok(())
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum LogLevelUsize {
@@ -44,7 +50,7 @@ impl From<LogLevelUsize> for Level {
 impl TryFrom<usize> for LogLevelUsize {
     type Error = ();
 
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
+    fn try_from(value: usize) -> std::result::Result<Self, Self::Error> {
         match value {
             5 => Ok(LogLevelUsize::Trace),
             4 => Ok(LogLevelUsize::Debug),
@@ -63,12 +69,6 @@ pub struct Logger {
 }
 
 impl Logger {
-    pub fn init() -> Result<()> {
-        log::set_logger(&*LOGGER)?;
-        log::set_max_level(log::LevelFilter::Trace);
-        Ok(())
-    }
-
     fn new() -> Self {
         Self {
             buffer: Mutex::new(String::new()),
