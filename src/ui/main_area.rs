@@ -1,4 +1,7 @@
-use eframe::egui::{Button, CentralPanel, ComboBox, Context, Key, Modifiers, ScrollArea, TextEdit, Ui, Align, Layout};
+use eframe::egui::{
+    Align, Button, CentralPanel, ComboBox, Context, Key, Layout, Modifiers, ScrollArea, TextEdit,
+    Ui,
+};
 use log::{error, info};
 
 use crate::app::App;

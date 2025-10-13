@@ -1,4 +1,6 @@
-use eframe::egui::{{Context, Grid, Window}, Align2, RichText, Vec2};
+use eframe::egui::{
+    Align2, RichText, Vec2, {Context, Grid, Window},
+};
 
 use crate::app::App;
 

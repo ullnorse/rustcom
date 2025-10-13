@@ -5,11 +5,10 @@ pub mod logger;
 pub mod serial;
 pub mod ui;
 pub mod util;
-pub mod error;
 
 use crate::app::App;
+use anyhow::{Result, anyhow};
 use eframe::egui::ViewportBuilder;
-use crate::error::Result;
 
 pub fn run() -> Result<()> {
     logger::init()?;
@@ -24,8 +23,9 @@ pub fn run() -> Result<()> {
     eframe::run_native(
         "Rustcom",
         native_options,
-        Box::new(|cc| Ok(Box::new(App::new(settings, Some(cc))))),
-    )?;
+        Box::new(|cc| Ok(Box::new(App::new(settings, Some(cc))?))),
+    )
+    .map_err(|e| anyhow!("eframe error: {e}"))?;
 
     Ok(())
 }

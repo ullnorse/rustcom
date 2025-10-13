@@ -26,7 +26,10 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(serial_settings: SerialSettings, cc: Option<&eframe::CreationContext>) -> Self {
+    pub fn new(
+        serial_settings: SerialSettings,
+        cc: Option<&eframe::CreationContext>,
+    ) -> Result<Self> {
         let egui_ctx = Context::default();
         let egui_ctx = cc.map(|cc| &cc.egui_ctx).unwrap_or(&egui_ctx);
         egui_ctx.set_theme(Theme::Light);
@@ -48,7 +51,10 @@ impl App {
             serial_settings.flow_control,
         );
 
-        Self {
+        let clipboard = ClipboardContext::new()
+            .map_err(|e| anyhow!("Error creating clipboard context: {e}"))?;
+
+        let app = Self {
             serial_settings: settings,
             available_ports,
             serial: None,
@@ -61,8 +67,10 @@ impl App {
             rx_cnt: 0,
             logger_window_open: false,
             about_window_open: false,
-            clipboard: ClipboardContext::new().unwrap(),
-        }
+            clipboard,
+        };
+
+        Ok(app)
     }
 
     fn render_ui(&mut self, ctx: &Context) {
@@ -85,7 +93,7 @@ impl App {
             return Ok(());
         };
 
-        self.rx_cnt += data.len();
+        self.rx_cnt = self.rx_cnt.wrapping_add(data.len());
 
         let output = self.prepare_output(data)?;
 
@@ -115,7 +123,7 @@ impl App {
         if let Err(e) = self.serial_send(SerialMsg::Str(s)) {
             error!("Failed to send serial data: {e:?}")
         } else {
-            self.tx_cnt += len
+            self.tx_cnt = self.tx_cnt.wrapping_add(len);
         }
     }
 

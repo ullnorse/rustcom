@@ -87,3 +87,63 @@ pub fn run() -> SerialSettings {
         stop_bits: cli.stop_bits.unwrap_or(StopBits::One),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_valid_baudrates() {
+        assert_eq!(possible_baudrates("115200"), Ok(115200));
+        assert_eq!(possible_baudrates("9600"), Ok(9600));
+        assert_eq!(possible_baudrates("0"), Ok(0));
+    }
+
+    #[test]
+    fn test_invalid_baudrate() {
+        assert!(possible_baudrates("12345").is_err());
+        assert!(possible_baudrates("invalid").is_err());
+    }
+
+    #[test]
+    fn test_valid_data_bits() {
+        assert_eq!(possible_data_bits("8"), Ok(DataBits::Eight));
+        assert_eq!(possible_data_bits("5"), Ok(DataBits::Five));
+    }
+
+    #[test]
+    fn test_invalid_data_bits() {
+        assert!(possible_data_bits("9").is_err());
+        assert!(possible_data_bits("abc").is_err());
+    }
+
+    #[test]
+    fn test_valid_parity() {
+        assert_eq!(possible_parity("none"), Ok(Parity::None));
+        assert_eq!(possible_parity("even"), Ok(Parity::Even));
+        assert_eq!(possible_parity("odd"), Ok(Parity::Odd));
+    }
+
+    #[test]
+    fn test_invalid_parity() {
+        assert!(possible_parity("invalid").is_err());
+    }
+
+    #[test]
+    fn test_valid_flow_control() {
+        assert_eq!(possible_flow_control("none"), Ok(FlowControl::None));
+        assert_eq!(possible_flow_control("software"), Ok(FlowControl::Software));
+        assert_eq!(possible_flow_control("hardware"), Ok(FlowControl::Hardware));
+    }
+
+    #[test]
+    fn test_valid_stop_bits() {
+        assert_eq!(possible_stop_bits("1"), Ok(StopBits::One));
+        assert_eq!(possible_stop_bits("2"), Ok(StopBits::Two));
+    }
+
+    #[test]
+    fn test_invalid_stop_bits() {
+        assert!(possible_stop_bits("3").is_err());
+    }
+}

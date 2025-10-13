@@ -1,18 +1,19 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use crossbeam::channel::{Receiver, Sender, unbounded};
 use log::error;
 use serialport::ClearBuffer;
 use std::io::{Read, Write};
 use std::mem;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
+const SERIAL_READ_TIMEOUT_MS: u64 = 50;
+const SERIAL_READ_BUFFER_SIZE: usize = 64;
+
 pub enum SerialMsg {
     Str(String),
-    File(PathBuf),
     Close,
 }
 
@@ -191,14 +192,9 @@ impl SerialSettings {
 }
 
 pub struct SerialMainState {
-    rx_stop_signal: Arc<AtomicBool>,
-
-    // from user to serial
+    rx_thread_running: Arc<AtomicBool>,
     tx_sender: Sender<SerialMsg>,
-
     join_handles: Option<(JoinHandle<()>, JoinHandle<()>)>,
-
-    // from serial to user
     rx_receiver: Receiver<String>,
 }
 
@@ -210,7 +206,7 @@ impl SerialMainState {
             .stop_bits(settings.stop_bits.into())
             .parity(settings.parity.into())
             .flow_control(settings.flow_control.into())
-            .timeout(Duration::from_millis(50))
+            .timeout(Duration::from_millis(SERIAL_READ_TIMEOUT_MS))
             .open()?;
 
         write_port.clear(ClearBuffer::All)?;
@@ -220,13 +216,12 @@ impl SerialMainState {
         let (rx_sender, rx_receiver) = unbounded::<String>();
         let (tx_sender, tx_receiver) = unbounded::<SerialMsg>();
 
-        let rx_stop_signal = Arc::new(AtomicBool::new(false));
-        let rx_thread_running_clone = rx_stop_signal.clone();
+        let rx_thread_running = Arc::new(AtomicBool::new(true));
+        let rx_thread_running_clone = rx_thread_running.clone();
 
         let rx_join_handle = std::thread::spawn(move || {
-            rx_thread_running_clone.store(true, Ordering::SeqCst);
             let mut buffer = Vec::new();
-            let mut temp_buf = [0; 64];
+            let mut temp_buf = [0; SERIAL_READ_BUFFER_SIZE];
 
             while rx_thread_running_clone.load(Ordering::SeqCst) {
                 match read_port.read(&mut temp_buf) {
@@ -235,16 +230,18 @@ impl SerialMainState {
 
                         while let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
                             let line = buffer.drain(..=pos).collect::<Vec<u8>>();
-                            if let Ok(string) = String::from_utf8(line) {
-                                let _ = rx_sender.send(string);
+                            let string = String::from_utf8_lossy(&line).to_string();
+                            if let Err(e) = rx_sender.send(string) {
+                                error!("Error receiving serial data: {e}");
                             }
                         }
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
                         if !buffer.is_empty()
                             && let Ok(s) = String::from_utf8(mem::take(&mut buffer))
+                            && let Err(e) = rx_sender.send(s)
                         {
-                            let _ = rx_sender.send(s);
+                            error!("Error receiving serial data on timeout: {e}");
                         }
                     }
                     Err(e) => {
@@ -259,16 +256,17 @@ impl SerialMainState {
             while let Ok(msg) = tx_receiver.recv() {
                 match msg {
                     SerialMsg::Str(s) => {
-                        let _ = write_port.write_all(s.as_bytes());
+                        if let Err(e) = write_port.write_all(s.as_bytes()) {
+                            error!("Error writing to serial port: {e}");
+                        }
                     }
-                    SerialMsg::File(_) => {}
                     SerialMsg::Close => break,
                 }
             }
         });
 
         Ok(Self {
-            rx_stop_signal,
+            rx_thread_running,
             tx_sender,
             join_handles: Some((rx_join_handle, tx_join_handle)),
             rx_receiver,
@@ -276,7 +274,9 @@ impl SerialMainState {
     }
 
     pub fn send(&self, msg: SerialMsg) -> Result<()> {
-        Ok(self.tx_sender.send(msg)?)
+        self.tx_sender
+            .send(msg)
+            .context("Failed to send serial message")
     }
 
     pub fn recv(&self) -> Result<String> {
@@ -298,7 +298,7 @@ impl SerialMainState {
 
     fn close_internal(&mut self) -> thread::Result<()> {
         if let Some((rx_handle, tx_handle)) = self.join_handles.take() {
-            self.rx_stop_signal.store(false, Ordering::Relaxed);
+            self.rx_thread_running.store(false, Ordering::SeqCst);
             let _ = self.tx_sender.send(SerialMsg::Close);
             rx_handle.join()?;
             tx_handle.join()?;
@@ -312,5 +312,86 @@ impl Drop for SerialMainState {
         if let Err(e) = self.close_internal() {
             error!("Unable to close serial port: {e:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_data_bits_display() {
+        assert_eq!(DataBits::Five.to_string(), "5");
+        assert_eq!(DataBits::Six.to_string(), "6");
+        assert_eq!(DataBits::Seven.to_string(), "7");
+        assert_eq!(DataBits::Eight.to_string(), "8");
+    }
+
+    #[test]
+    fn test_stop_bits_display() {
+        assert_eq!(StopBits::One.to_string(), "1");
+        assert_eq!(StopBits::Two.to_string(), "2");
+    }
+
+    #[test]
+    fn test_parity_display() {
+        assert_eq!(Parity::None.to_string(), "None");
+        assert_eq!(Parity::Odd.to_string(), "Odd");
+        assert_eq!(Parity::Even.to_string(), "Even");
+    }
+
+    #[test]
+    fn test_flow_control_display() {
+        assert_eq!(FlowControl::None.to_string(), "None");
+        assert_eq!(FlowControl::Software.to_string(), "Software");
+        assert_eq!(FlowControl::Hardware.to_string(), "Hardware");
+    }
+
+    #[test]
+    fn test_data_bits_conversion() {
+        assert_eq!(
+            serialport::DataBits::from(DataBits::Five),
+            serialport::DataBits::Five
+        );
+        assert_eq!(
+            serialport::DataBits::from(DataBits::Eight),
+            serialport::DataBits::Eight
+        );
+    }
+
+    #[test]
+    fn test_parity_conversion() {
+        assert_eq!(
+            serialport::Parity::from(Parity::None),
+            serialport::Parity::None
+        );
+        assert_eq!(
+            serialport::Parity::from(Parity::Even),
+            serialport::Parity::Even
+        );
+    }
+
+    #[test]
+    fn test_flow_control_conversion() {
+        assert_eq!(
+            serialport::FlowControl::from(FlowControl::None),
+            serialport::FlowControl::None
+        );
+        assert_eq!(
+            serialport::FlowControl::from(FlowControl::Hardware),
+            serialport::FlowControl::Hardware
+        );
+    }
+
+    #[test]
+    fn test_stop_bits_conversion() {
+        assert_eq!(
+            serialport::StopBits::from(StopBits::One),
+            serialport::StopBits::One
+        );
+        assert_eq!(
+            serialport::StopBits::from(StopBits::Two),
+            serialport::StopBits::Two
+        );
     }
 }

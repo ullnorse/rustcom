@@ -2,14 +2,21 @@
 name = "rustcom"
 version = "0.1.0"
 edition = "2024"
+authors = ["Aleksa Jonic ullnorse@gmail.com"]
+description = "A graphical serial terminal"
+repository = "https://github.com/ullnorse/rustcom"
+license = "MIT"
+keywords = ["serial", "terminal", "gui", "embedded"]
+categories = ["gui"]
+readme = "README.md"
 
 [dependencies]
-eframe = "0.33.0"
-crossbeam = "0.8.4"
 anyhow = "1"
-thiserror = "2"
-clipboard = "0.5.0"
-log = "0.4.26"
 clap = {version = "4.5.49", features = ["derive"]}
-serialport = "4.8.1"
+clipboard = "0.5.0"
+crossbeam = "0.8.4"
+eframe = "0.33.0"
+log = "0.4.26"
 open = "5.3.2"
+serialport = "4.8.1"
+thiserror = "2"

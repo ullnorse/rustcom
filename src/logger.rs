@@ -1,10 +1,10 @@
+use anyhow::Result;
 use log::Level;
 use std::convert::TryFrom;
 use std::sync::{
     LazyLock, Mutex,
     atomic::{AtomicUsize, Ordering},
 };
-use crate::error::Result;
 
 pub static LOGGER: LazyLock<Logger> = LazyLock::new(Logger::new);
 

@@ -1,39 +1,46 @@
 use eframe::egui::{Context, TopBottomPanel, Ui};
+use log::error;
 
 use crate::app::App;
 
-fn create_menu_item(
-    ui: &mut Ui,
-    label: &str,
-    shortcut: Option<&str>,
-    mut callback: impl FnMut(),
-) {
-    if ui
-        .button(format!("{:<30}{}", label, shortcut.unwrap_or_default()))
-        .clicked()
-    {
+fn create_menu_item(label: &str, ui: &mut Ui, mut callback: impl FnMut()) {
+    if ui.button(format!("{:<30}", label)).clicked() {
         callback();
         ui.close();
     }
 }
 
 fn file_menu(app: &mut App, ui: &mut Ui, ctx: &Context) {
-    create_menu_item(ui, "Quit", None, || app.quit(ctx));
+    create_menu_item("Quit", ui, || app.quit(ctx));
 }
 
 fn edit_menu(app: &mut App, ui: &mut Ui) {
-    create_menu_item(ui, "Cut", Some("Ctrl+X"), || app.cut().unwrap());
-    create_menu_item(ui, "Copy", Some("Ctrl+C"), || app.copy().unwrap());
-    create_menu_item(ui, "Paste", Some("Ctrl+V"), || app.paste().unwrap());
+    create_menu_item("Cut", ui, || {
+        if let Err(e) = app.cut() {
+            error!("Cut operation failed: {e}");
+        }
+    });
+
+    create_menu_item("Copy", ui, || {
+        if let Err(e) = app.copy() {
+            error!("Copy operation failed: {e}");
+        }
+    });
+
+    create_menu_item("Paste", ui, || {
+        if let Err(e) = app.paste() {
+            error!("Paste operation failed: {e}");
+        }
+    });
 
     ui.separator();
 
-    create_menu_item(ui, "Clear", Some("Ctrl+L"), || app.output_text.clear());
+    create_menu_item("Clear", ui, || app.output_text.clear());
 }
 
 fn help_menu(app: &mut App, ui: &mut Ui) {
-    create_menu_item(ui, "Show About", None, || app.about_window_open = true);
-    create_menu_item(ui, "Show Log", None, || app.logger_window_open = true);
+    create_menu_item("Show About", ui, || app.about_window_open = true);
+    create_menu_item("Show Log", ui, || app.logger_window_open = true);
 }
 
 impl App {

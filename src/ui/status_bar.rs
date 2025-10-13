@@ -1,8 +1,5 @@
-#![allow(clippy::format_in_format_args)]
-
-use eframe::egui::{global_theme_preference_switch, Context, TopBottomPanel, TextBuffer};
-
 use crate::app::App;
+use eframe::egui::{Context, TextBuffer, TopBottomPanel, global_theme_preference_switch};
 
 impl App {
     pub fn render_status_bar(&mut self, ctx: &Context) {
@@ -19,9 +16,9 @@ impl App {
                         "CLOSED"
                     },
                     self.serial_settings.baud_rate,
-                    format!("{}", self.serial_settings.data_bits),
+                    format_args!("{}", self.serial_settings.data_bits),
                     format!("{:?}", self.serial_settings.parity).char_range(0..1),
-                    format!("{}", self.serial_settings.stop_bits),
+                    format_args!("{}", self.serial_settings.stop_bits),
                     self.serial_settings.flow_control,
                     self.tx_cnt,
                     self.rx_cnt,

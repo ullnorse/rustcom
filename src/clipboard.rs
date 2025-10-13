@@ -1,6 +1,6 @@
 use crate::app::App;
-use anyhow::{Result, bail};
-use clipboard::{ClipboardContext, ClipboardProvider};
+use anyhow::{Result, anyhow};
+use clipboard::ClipboardProvider;
 
 impl App {
     pub fn cut(&mut self) -> Result<()> {
@@ -10,25 +10,17 @@ impl App {
     }
 
     pub fn copy(&mut self) -> Result<()> {
-        set_clipboard_contents(&mut self.clipboard, self.output_text.clone())
+        self.clipboard
+            .set_contents(self.output_text.clone())
+            .map_err(|e| anyhow!("Failed to copy to clipboard: {e}"))
     }
 
     pub fn paste(&mut self) -> Result<()> {
-        get_clipboard_contents(&mut self.clipboard)
-            .map(|contents| self.input_text.push_str(&contents))
-    }
-}
-
-fn set_clipboard_contents(clipboard: &mut ClipboardContext, contents: String) -> Result<()> {
-    match clipboard.set_contents(contents) {
-        Ok(_) => Ok(()),
-        Err(e) => bail!("Error setting clipboard contents: {e:?}"),
-    }
-}
-
-fn get_clipboard_contents(clipboard: &mut ClipboardContext) -> Result<String> {
-    match clipboard.get_contents() {
-        Ok(contents) => Ok(contents),
-        Err(e) => bail!("Error getting clipboard contents: {e:?}"),
+        let contents = self
+            .clipboard
+            .get_contents()
+            .map_err(|e| anyhow!("Failed to paste from clipboard: {e}"))?;
+        self.input_text.push_str(&contents);
+        Ok(())
     }
 }
