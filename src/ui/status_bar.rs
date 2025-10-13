@@ -11,7 +11,7 @@ impl App {
                 global_theme_preference_switch(ui);
 
                 ui.label(format!(
-                    "{} {} | {}, {}-{}-{} flow control: {:?}           TX: {} | RX: {}      {}",
+                    "{} {} | {}, {}-{}-{} flow control: {:?}           TX: {} | RX: {}",
                     self.serial_settings.port,
                     if self.serial.is_some() {
                         "OPENED"
@@ -25,11 +25,6 @@ impl App {
                     self.serial_settings.flow_control,
                     self.tx_cnt,
                     self.rx_cnt,
-                    if self.logging_to_file_started {
-                        format!("Logging to: {}", self.log_file_name)
-                    } else {
-                        String::new()
-                    }
                 ));
             });
         });

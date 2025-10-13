@@ -1,7 +1,5 @@
-use directories::BaseDirs;
 use eframe::egui::{Button, CentralPanel, ComboBox, Context, Key, Modifiers, ScrollArea, TextEdit, Ui, Align, Layout};
 use log::{error, info};
-use rfd::FileDialog;
 
 use crate::app::App;
 use crate::serial::{DataBits, FlowControl, Parity, SerialMainState, StopBits};
@@ -27,47 +25,6 @@ impl App {
                 }
 
                 ui.checkbox(&mut self.hex_output, "Hex output");
-
-                if ui
-                    .checkbox(&mut self.logging_to_file_started, "Logging to:")
-                    .clicked()
-                {
-                    if self.logging_to_file_started {
-                        self.stop_recording_thread();
-                    } else {
-                        self.start_recording_thread();
-                    }
-                }
-
-                let selectable_text = |ui: &mut Ui, mut text: &str| {
-                    ui.add_sized(
-                        [200.0, ui.available_height()],
-                        TextEdit::singleline(&mut text),
-                    );
-                };
-
-                selectable_text(ui, &self.log_file_name);
-
-                if ui
-                    .button("...")
-                    .on_hover_text_at_pointer("Choose log file via file chooser")
-                    .clicked()
-                    && let Some(path) = BaseDirs::new()
-                        .and_then(|dirs| {
-                            FileDialog::new()
-                                .set_title("Open")
-                                .set_directory(dirs.home_dir())
-                                .pick_file()
-                        })
-                        .and_then(|path| path.into_os_string().into_string().ok())
-                {
-                    self.log_file_name = path;
-                }
-
-                ui.checkbox(&mut self.log_file_append, "Append")
-                    .on_hover_text_at_pointer(
-                        "Appends to an existing log file instead of truncating it",
-                    );
             });
 
             let selectable_text = |ui: &mut Ui, mut text: &str| {
