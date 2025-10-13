@@ -241,10 +241,10 @@ impl SerialMainState {
                         }
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
-                        if !buffer.is_empty() {
-                            if let Ok(s) = String::from_utf8(mem::take(&mut buffer)) {
-                                let _ = rx_sender.send(s);
-                            }
+                        if !buffer.is_empty()
+                            && let Ok(s) = String::from_utf8(mem::take(&mut buffer))
+                        {
+                            let _ = rx_sender.send(s);
                         }
                     }
                     Err(e) => {

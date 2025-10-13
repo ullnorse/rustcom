@@ -1,10 +1,8 @@
-use crate::logger::Logger;
-use crate::macros::Macros;
 use crate::serial::{SerialMainState, SerialMsg, SerialSettings};
 use crate::util;
 use anyhow::{Result, anyhow, bail};
 use clipboard::{ClipboardContext, ClipboardProvider};
-use crossbeam::channel::{Receiver, Sender, unbounded};
+use crossbeam::channel::{Sender, unbounded};
 use directories::BaseDirs;
 use log::error;
 use std::fs::{File, OpenOptions};
@@ -12,7 +10,6 @@ use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use std::time::Duration;
 
 pub struct App {
     pub serial_settings: SerialSettings,
@@ -29,12 +26,8 @@ pub struct App {
     pub tx_cnt: usize,
     pub rx_cnt: usize,
 
-    pub macros: Macros,
-    pub macro_channel: (Sender<String>, Receiver<String>),
-    pub macros_ui_open: bool,
     pub logger_window_open: bool,
     pub about_window_open: bool,
-    pub macros_window_open: bool,
 
     pub logging_to_file_started: bool,
     pub log_file_append: bool,
@@ -86,12 +79,8 @@ impl App {
             hex_output: false,
             tx_cnt: 0,
             rx_cnt: 0,
-            macros: Macros::new(),
-            macro_channel: unbounded(),
-            macros_ui_open: true,
             logger_window_open: false,
             about_window_open: false,
-            macros_window_open: false,
             logging_to_file_started: false,
             log_file_append: false,
             log_file_name,
@@ -110,7 +99,6 @@ impl App {
     fn show_windows(&mut self, ctx: &egui::Context) {
         self.show_logger_window(ctx);
         self.show_about_window(ctx);
-        self.show_macros_window(ctx);
     }
 
     fn handle_serial_data(&mut self) -> Result<()> {
@@ -162,21 +150,6 @@ impl App {
         }
     }
 
-    fn handle_macros_data(&mut self) -> Result<()> {
-        match self.macro_channel.1.try_recv() {
-            Ok(data) => {
-                self.serial_send(SerialMsg::Str(data))?;
-            }
-            Err(crossbeam::channel::TryRecvError::Empty) => {
-                return Ok(());
-            }
-            Err(crossbeam::channel::TryRecvError::Disconnected) => {
-                bail!("Macro channel disconnected")
-            }
-        }
-        Ok(())
-    }
-
     pub fn send(&mut self) {
         let s = format!("{}{}", self.input_text, self.input_line_end);
         let len = s.len();
@@ -217,46 +190,6 @@ impl App {
         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
     }
 
-    pub fn start_macro(&mut self, num: usize) {
-        let Some(m) = self.macros.macros.get(num) else {
-            return;
-        };
-
-        let Some(s) = self.macros.stop_signals.get(num) else {
-            return;
-        };
-
-        let stop_signal = s.clone();
-        let macro_text = m.text.clone();
-        let delay = m.delay;
-
-        stop_signal.store(true, Ordering::SeqCst);
-
-        let sender = self.macro_channel.0.clone();
-
-        let handle = thread::spawn(move || {
-            while stop_signal.load(Ordering::SeqCst) {
-                sender.send(macro_text.clone() + "\n").ok();
-                thread::sleep(Duration::from_millis(delay as u64));
-            }
-        });
-
-        self.macros.running_threads[num] = Some(handle);
-    }
-
-    pub fn stop_macro(&mut self, num: usize) {
-        let Some(stop_signal) = self.macros.stop_signals.get(num) else {
-            return;
-        };
-
-        let Some(handle) = self.macros.running_threads.get_mut(num) else {
-            return;
-        };
-
-        stop_signal.store(false, Ordering::SeqCst);
-        handle.take();
-    }
-
     pub fn start_recording_thread(&mut self) {
         let log_file_name = self.log_file_name.clone();
         let stop_sig = self.logging_thread_stop_sig.clone();
@@ -285,10 +218,10 @@ impl App {
             };
 
             while stop_sig.load(Ordering::SeqCst) {
-                if let Ok(s) = receiver.recv() {
-                    if let Err(e) = file.write_all(s.as_bytes()) {
-                        error!("Can't write to log file: {e:?}");
-                    }
+                if let Ok(s) = receiver.recv()
+                    && let Err(e) = file.write_all(s.as_bytes())
+                {
+                    error!("Can't write to log file: {e:?}");
                 }
             }
         });
@@ -302,7 +235,6 @@ impl App {
 
     pub fn update(&mut self, ctx: &egui::Context) -> Result<()> {
         self.handle_serial_data()?;
-        self.handle_macros_data()?;
 
         self.render_ui(ctx);
         self.show_windows(ctx);
@@ -323,22 +255,4 @@ impl eframe::App for App {
 
         App::request_repaint_at_fps(ctx, 60);
     }
-}
-
-pub fn run(settings: SerialSettings) -> Result<()> {
-    Logger::init()?;
-
-    let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([800f32, 800f32]),
-        ..Default::default()
-    };
-
-    eframe::run_native(
-        "Rustcom",
-        native_options,
-        Box::new(|cc| Ok(Box::new(App::new(settings, Some(cc))))),
-    )
-    .map_err(|e| anyhow!("Error during run_native: {e:?}"))?;
-
-    Ok(())
 }

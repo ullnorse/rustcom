@@ -4,8 +4,7 @@ use log::{error, info};
 use rfd::FileDialog;
 
 use crate::app::App;
-use crate::macros::Macros;
-use crate::serial::{DataBits, FlowControl, Parity, SerialMainState, SerialMsg, StopBits};
+use crate::serial::{DataBits, FlowControl, Parity, SerialMainState, StopBits};
 use crate::ui;
 
 impl App {
@@ -15,7 +14,6 @@ impl App {
 
             ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
                 self.render_input_ui(ui, ctx);
-                self.render_macros_ui(ui);
                 self.render_output_ui(ui);
             });
         });
@@ -54,8 +52,7 @@ impl App {
                     .button("...")
                     .on_hover_text_at_pointer("Choose log file via file chooser")
                     .clicked()
-                {
-                    if let Some(path) = BaseDirs::new()
+                    && let Some(path) = BaseDirs::new()
                         .and_then(|dirs| {
                             FileDialog::new()
                                 .set_title("Open")
@@ -63,9 +60,8 @@ impl App {
                                 .pick_file()
                         })
                         .and_then(|path| path.into_os_string().into_string().ok())
-                    {
-                        self.log_file_name = path;
-                    }
+                {
+                    self.log_file_name = path;
                 }
 
                 ui.checkbox(&mut self.log_file_append, "Append")
@@ -266,34 +262,5 @@ impl App {
                 });
             });
         });
-    }
-
-    pub fn render_macros_ui(&mut self, ui: &mut egui::Ui) {
-        if self.macros_ui_open {
-            ui.group(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Macros");
-                    if ui.button("Set Macros").clicked() {
-                        self.macros_window_open = true;
-                    }
-
-                    for i in 0..Macros::NUM_OF_MACROS {
-                        if ui
-                            .button(format!("M{}{}", i + 1, if i < 10 { " " } else { "" }))
-                            .clicked()
-                        {
-                            if let Some(m) = self.macros.get_macro(i) {
-                                let text = m.text.clone();
-                                if let Err(e) = self.serial_send(SerialMsg::Str(text + "\n")) {
-                                    error!("Couldn't send macro: {e:?}");
-                                }
-                            }
-                        }
-                    }
-
-                    ui.add_space(ui.available_width());
-                });
-            });
-        }
     }
 }
