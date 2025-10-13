@@ -2,7 +2,7 @@
 is_ci := env_var_or_default("CI", "false")
 clippy_flags := if is_ci == "true" { "--all-targets --all-features -- -D warnings" } else { "--all-targets --all-features" }
 ci_mode := if is_ci == "true" { "CI" } else { "local" }
-ci_build_flags := if is_ci == "true" { "--locked" } else { "" }
+ci_release_flags := if is_ci == "true" { "--release" } else { "" }
 
 # Show available commands
 default:
@@ -10,7 +10,7 @@ default:
 
 # Run the application
 run *ARGS:
-    @cargo run -- {{ARGS}}
+    @cargo run {{ci_release_flags}} -- {{ARGS}}
 
 # Build in debug mode
 build:
@@ -18,11 +18,11 @@ build:
 
 # Build in release mode
 release:
-    @cargo build --release {{ci_build_flags}}
+    @cargo build --release
 
 # Run all tests
 test:
-    @cargo test {{ci_build_flags}}
+    @cargo test {{ci_release_flags}}
 
 # Format code
 fmt:
@@ -35,10 +35,10 @@ fmt-check:
 # Run clippy linter (warnings in local, errors in CI)
 clippy:
     @echo "Running clippy in {{ci_mode}} mode"
-    @cargo clippy {{ci_build_flags}} {{clippy_flags}}
+    @cargo clippy {{ci_release_flags}} {{clippy_flags}}
 
 # Run complete CI pipeline (auto-detects CI environment)
-ci: test fmt-check clippy release
+ci: fmt-check release test clippy
     @echo "All CI checks passed"
 
 # Force strict CI mode locally (simulates what runs in GitHub Actions)
