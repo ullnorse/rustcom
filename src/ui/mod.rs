@@ -1,13 +1,15 @@
+use eframe::egui::{ComboBox, Ui};
+
 pub mod main_area;
 pub mod menu_bar;
 pub mod status_bar;
 pub mod windows;
 
-pub fn render_combo_box<T>(ui: &mut egui::Ui, label: &str, current_value: &mut T, options: &[T])
+pub fn render_combo_box<T>(ui: &mut Ui, label: &str, current_value: &mut T, options: &[T])
 where
     T: ToString + Clone + PartialEq,
 {
-    egui::ComboBox::from_label(label)
+    ComboBox::from_label(label)
         .selected_text(current_value.to_string())
         .show_ui(ui, |ui| {
             for option in options {

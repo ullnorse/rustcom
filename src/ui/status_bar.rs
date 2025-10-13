@@ -1,13 +1,14 @@
 #![allow(clippy::format_in_format_args)]
 
+use eframe::egui::{global_theme_preference_switch, Context, TopBottomPanel, TextBuffer};
+
 use crate::app::App;
-use egui::TextBuffer;
 
 impl App {
-    pub fn render_status_bar(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
+    pub fn render_status_bar(&mut self, ctx: &Context) {
+        TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                egui::global_theme_preference_switch(ui);
+                global_theme_preference_switch(ui);
 
                 ui.label(format!(
                     "{} {} | {}, {}-{}-{} flow control: {:?}           TX: {} | RX: {}      {}",

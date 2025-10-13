@@ -4,6 +4,7 @@ use anyhow::{Result, anyhow, bail};
 use clipboard::{ClipboardContext, ClipboardProvider};
 use crossbeam::channel::{Sender, unbounded};
 use directories::BaseDirs;
+use eframe::egui::{Context, Theme, ViewportCommand};
 use log::error;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
@@ -39,9 +40,9 @@ pub struct App {
 
 impl App {
     pub fn new(serial_settings: SerialSettings, cc: Option<&eframe::CreationContext>) -> Self {
-        let egui_ctx = egui::Context::default();
+        let egui_ctx = Context::default();
         let egui_ctx = cc.map(|cc| &cc.egui_ctx).unwrap_or(&egui_ctx);
-        egui_ctx.set_theme(egui::Theme::Light);
+        egui_ctx.set_theme(Theme::Light);
 
         let available_ports = SerialMainState::available_ports();
         let selected_port = serial_settings
@@ -90,13 +91,13 @@ impl App {
         }
     }
 
-    fn render_ui(&mut self, ctx: &egui::Context) {
+    fn render_ui(&mut self, ctx: &Context) {
         self.render_menu_bar(ctx);
         self.render_status_bar(ctx);
         self.render_main_area(ctx);
     }
 
-    fn show_windows(&mut self, ctx: &egui::Context) {
+    fn show_windows(&mut self, ctx: &Context) {
         self.show_logger_window(ctx);
         self.show_about_window(ctx);
     }
@@ -186,8 +187,8 @@ impl App {
         Ok(())
     }
 
-    pub fn quit(&self, ctx: &egui::Context) {
-        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    pub fn quit(&self, ctx: &Context) {
+        ctx.send_viewport_cmd(ViewportCommand::Close);
     }
 
     pub fn start_recording_thread(&mut self) {
@@ -233,7 +234,7 @@ impl App {
         self.logging_to_file_started = false;
     }
 
-    pub fn update(&mut self, ctx: &egui::Context) -> Result<()> {
+    pub fn update(&mut self, ctx: &Context) -> Result<()> {
         self.handle_serial_data()?;
 
         self.render_ui(ctx);
@@ -242,13 +243,13 @@ impl App {
         Ok(())
     }
 
-    pub fn request_repaint_at_fps(ctx: &egui::Context, fps: u32) {
+    pub fn request_repaint_at_fps(ctx: &Context, fps: u32) {
         ctx.request_repaint_after(util::calculate_repaint_duration(fps));
     }
 }
 
 impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         if let Err(e) = self.update(ctx) {
             error!("Error during frame update: {e:?}");
         }

@@ -8,6 +8,7 @@ pub mod util;
 
 use crate::{app::App, logger::Logger};
 use anyhow::{Result, anyhow};
+use eframe::egui::ViewportBuilder;
 
 pub fn run() -> Result<()> {
     Logger::init()?;
@@ -15,7 +16,7 @@ pub fn run() -> Result<()> {
     let settings = cli::run()?;
 
     let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([800f32, 800f32]),
+        viewport: ViewportBuilder::default().with_inner_size([800f32, 800f32]),
         ..Default::default()
     };
 

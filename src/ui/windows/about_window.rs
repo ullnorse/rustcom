@@ -1,10 +1,10 @@
-use egui::{Align2, RichText, Vec2};
+use eframe::egui::{{Context, Grid, Window}, Align2, RichText, Vec2};
 
 use crate::app::App;
 
 impl App {
-    pub fn show_about_window(&mut self, ctx: &egui::Context) {
-        egui::Window::new("About")
+    pub fn show_about_window(&mut self, ctx: &Context) {
+        Window::new("About")
             .resizable(false)
             .collapsible(false)
             .open(&mut self.about_window_open)
@@ -21,7 +21,7 @@ impl App {
                     ui.label("© 2025 Aleksa Jonić - MIT OR Apache-2.0");
                     ui.label(concat!("Version ", env!("CARGO_PKG_VERSION")));
                 });
-                egui::Grid::new("about_box").num_columns(2).show(ui, |ui| {
+                Grid::new("about_box").num_columns(2).show(ui, |ui| {
                     ui.label("GitHub:");
                     if ui.link("https://github.com/ullnorse/rustcom").clicked() {
                         open::that("https://github.com/ullnorse/rustcom").unwrap_or(());

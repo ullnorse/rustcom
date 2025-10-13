@@ -1,5 +1,5 @@
 use directories::BaseDirs;
-use egui::{Align, Layout};
+use eframe::egui::{Button, CentralPanel, ComboBox, Context, Key, Modifiers, ScrollArea, TextEdit, Ui, Align, Layout};
 use log::{error, info};
 use rfd::FileDialog;
 
@@ -8,8 +8,8 @@ use crate::serial::{DataBits, FlowControl, Parity, SerialMainState, StopBits};
 use crate::ui;
 
 impl App {
-    pub fn render_main_area(&mut self, ctx: &egui::Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    pub fn render_main_area(&mut self, ctx: &Context) {
+        CentralPanel::default().show(ctx, |ui| {
             self.render_settings_ui(ui);
 
             ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
@@ -19,7 +19,7 @@ impl App {
         });
     }
 
-    fn render_output_ui(&mut self, ui: &mut egui::Ui) {
+    fn render_output_ui(&mut self, ui: &mut Ui) {
         ui.group(|ui| {
             ui.horizontal(|ui| {
                 if ui.button("Clear").clicked() {
@@ -39,10 +39,10 @@ impl App {
                     }
                 }
 
-                let selectable_text = |ui: &mut egui::Ui, mut text: &str| {
+                let selectable_text = |ui: &mut Ui, mut text: &str| {
                     ui.add_sized(
                         [200.0, ui.available_height()],
-                        egui::TextEdit::singleline(&mut text),
+                        TextEdit::singleline(&mut text),
                     );
                 };
 
@@ -70,13 +70,13 @@ impl App {
                     );
             });
 
-            let selectable_text = |ui: &mut egui::Ui, mut text: &str| {
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    ui.add_sized(ui.available_size(), egui::TextEdit::multiline(&mut text));
+            let selectable_text = |ui: &mut Ui, mut text: &str| {
+                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                    ui.add_sized(ui.available_size(), TextEdit::multiline(&mut text));
                 });
             };
 
-            egui::ScrollArea::vertical()
+            ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .stick_to_bottom(self.auto_scroll)
                 .show(ui, |ui| {
@@ -85,13 +85,13 @@ impl App {
         });
     }
 
-    pub fn render_input_ui(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    pub fn render_input_ui(&mut self, ui: &mut Ui, ctx: &Context) {
         ui.add_space(10f32);
 
         ui.horizontal(|ui| {
             ui.group(|ui| {
                 ui.label("Input: ");
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| {
+                ui.with_layout(Layout::right_to_left(Align::Max), |ui| {
                     if ui.button("Send").clicked() {
                         self.send();
                     }
@@ -103,7 +103,7 @@ impl App {
                         ("\r\n", "+CRLF"),
                     ];
 
-                    egui::ComboBox::from_id_salt("ComboBox line end")
+                    ComboBox::from_id_salt("ComboBox line end")
                         .width(50f32)
                         .selected_text(
                             line_ends
@@ -123,11 +123,11 @@ impl App {
 
                     let response = ui.add_sized(
                         ui.available_size(),
-                        egui::TextEdit::singleline(&mut self.input_text),
+                        TextEdit::singleline(&mut self.input_text),
                     );
 
                     if response.lost_focus()
-                        && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
+                        && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter))
                     {
                         self.send();
                         response.request_focus();
@@ -137,14 +137,14 @@ impl App {
         });
     }
 
-    pub fn render_settings_ui(&mut self, ui: &mut egui::Ui) {
+    pub fn render_settings_ui(&mut self, ui: &mut Ui) {
         ui.vertical(|ui| {
             ui.group(|ui| {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
                         if self.serial.is_some() {
                             if ui
-                                .add_sized((70f32, 10f32), egui::Button::new("Disconnect"))
+                                .add_sized((80f32, 10f32), Button::new("Disconnect"))
                                 .clicked()
                             {
                                 match self.disconnect() {
@@ -157,7 +157,7 @@ impl App {
                                 }
                             }
                         } else if ui
-                            .add_sized((70f32, 10f32), egui::Button::new("Connect"))
+                            .add_sized((80f32, 10f32), Button::new("Connect"))
                             .clicked()
                         {
                             match self.connect() {
@@ -168,18 +168,16 @@ impl App {
                     });
 
                     ui.vertical(|ui| {
-                        ui.checkbox(&mut false, "Timestamp")
-                            .on_hover_text_at_pointer("Add timestamp to new lines in receive box");
                         ui.checkbox(&mut self.auto_scroll, "Auto scroll")
                             .on_hover_text_at_pointer("Auto scroll receive box to the end");
                     });
 
                     ui.add_space(ui.available_width() - 180f32);
 
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Max), |ui| {
+                    ui.with_layout(Layout::right_to_left(Align::Max), |ui| {
                         ui.vertical(|ui| {
                             ui.horizontal(|ui| {
-                                egui::ComboBox::from_id_salt("COM Port")
+                                ComboBox::from_id_salt("COM Port")
                                     .selected_text(&self.serial_settings.port)
                                     .show_ui(ui, |ui| {
                                         for device in &self.available_ports {

@@ -1,9 +1,10 @@
 use crate::{app::App, logger::LOGGER};
+use eframe::egui::{Align, ComboBox, Context, Layout, ScrollArea, TextEdit, Ui, Window};
 use log::Level;
 
 impl App {
-    pub fn show_logger_window(&mut self, ctx: &egui::Context) {
-        egui::Window::new("Log")
+    pub fn show_logger_window(&mut self, ctx: &Context) {
+        Window::new("Log")
             .resizable(false)
             .open(&mut self.logger_window_open)
             .show(ctx, |ui| {
@@ -22,7 +23,7 @@ impl App {
 
                     let mut log_level = LOGGER.get_level().unwrap_or(Level::max());
 
-                    egui::ComboBox::from_label("Log level")
+                    ComboBox::from_label("Log level")
                         .selected_text(format!("{:?}", log_level))
                         .show_ui(ui, |ui| {
                             for level in levels {
@@ -36,14 +37,14 @@ impl App {
                         });
                 });
 
-                let selectable_text = |ui: &mut egui::Ui, mut text: &str| {
-                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                        ui.add_sized(ui.available_size(), egui::TextEdit::multiline(&mut text));
+                let selectable_text = |ui: &mut Ui, mut text: &str| {
+                    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                        ui.add_sized(ui.available_size(), TextEdit::multiline(&mut text));
                     });
                 };
 
                 ui.group(|ui| {
-                    egui::ScrollArea::vertical()
+                    ScrollArea::vertical()
                         .auto_shrink([false, false])
                         .stick_to_bottom(true)
                         .show(ui, |ui| {

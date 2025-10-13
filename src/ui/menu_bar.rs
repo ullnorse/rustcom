@@ -1,7 +1,9 @@
+use eframe::egui::{Context, TopBottomPanel, Ui};
+
 use crate::app::App;
 
 fn create_menu_item(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     label: &str,
     shortcut: Option<&str>,
     mut callback: impl FnMut(),
@@ -11,15 +13,15 @@ fn create_menu_item(
         .clicked()
     {
         callback();
-        ui.close_menu();
+        ui.close();
     }
 }
 
-fn file_menu(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
+fn file_menu(app: &mut App, ui: &mut Ui, ctx: &Context) {
     create_menu_item(ui, "Quit", None, || app.quit(ctx));
 }
 
-fn edit_menu(app: &mut App, ui: &mut egui::Ui) {
+fn edit_menu(app: &mut App, ui: &mut Ui) {
     create_menu_item(ui, "Cut", Some("Ctrl+X"), || app.cut().unwrap());
     create_menu_item(ui, "Copy", Some("Ctrl+C"), || app.copy().unwrap());
     create_menu_item(ui, "Paste", Some("Ctrl+V"), || app.paste().unwrap());
@@ -29,14 +31,14 @@ fn edit_menu(app: &mut App, ui: &mut egui::Ui) {
     create_menu_item(ui, "Clear", Some("Ctrl+L"), || app.output_text.clear());
 }
 
-fn help_menu(app: &mut App, ui: &mut egui::Ui) {
+fn help_menu(app: &mut App, ui: &mut Ui) {
     create_menu_item(ui, "Show About", None, || app.about_window_open = true);
     create_menu_item(ui, "Show Log", None, || app.logger_window_open = true);
 }
 
 impl App {
-    pub fn render_menu_bar(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
+    pub fn render_menu_bar(&mut self, ctx: &Context) {
+        TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             ui.style_mut().visuals.button_frame = false;
 
             ui.horizontal(|ui| {
