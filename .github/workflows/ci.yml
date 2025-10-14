@@ -3,19 +3,32 @@ name: CI
 on:
   push:
     branches: [ master, main ]
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'docs/**'
+      - 'screenshots/**'
   pull_request:
     branches: [ master, main ]
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'docs/**'
+      - 'screenshots/**'
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   test:
-    name: Test on ${{ matrix.os }}
+    name: Test on ${{ matrix.os }} (${{ matrix.arch || 'default' }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: macos-latest
+            arch: aarch64
 
     steps:
     - uses: actions/checkout@v4
@@ -24,7 +37,7 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
 
     - name: Install system dependencies (Linux)
-      if: matrix.os == 'ubuntu-latest'
+      if: runner.os == 'Linux'
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -33,19 +46,26 @@ jobs:
           libxcb1-dev \
           libxcb-render0-dev \
           libxcb-shape0-dev \
-          libxcb-xfixes0-dev
+          libxcb-xfixes0-dev \
+          libxcb-randr0-dev \
+          libxcb-xtest0-dev \
+          libxcb-xinerama0-dev \
+          libxcb-xkb-dev \
+          libxcb-cursor-dev \
+          libxcb-keysyms1-dev \
+          libxcb-util0-dev
 
     - name: Cache cargo registry
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: ${{ runner.os }}-cargo-stable-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-cargo-stable-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('justfile') }}
 
     - name: Install just
-      uses: extractions/setup-just@v1
+      uses: extractions/setup-just@v2
 
     - name: Run CI pipeline
       run: just ci-strict

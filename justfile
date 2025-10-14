@@ -17,7 +17,7 @@ build:
     @cargo build
 
 # Build in release mode
-release:
+build-release:
     @cargo build --release
 
 # Run all tests
@@ -38,12 +38,12 @@ clippy:
     @cargo clippy {{ci_release_flags}} {{clippy_flags}}
 
 # Run complete CI pipeline (auto-detects CI environment)
-ci: fmt-check release test clippy
+ci: fmt-check build-release test clippy
     @echo "All CI checks passed"
 
 # Force strict CI mode locally (simulates what runs in GitHub Actions)
 ci-strict:
-    @just is_ci=true ci
+    @just --set is_ci true ci
 
 # Clean build artifacts
 clean:
@@ -59,6 +59,17 @@ audit:
 
 # Install recommended development tools
 setup:
-    @echo "Installing development tools"
+    @echo "Installing development tools..."
     @cargo install cargo-audit
+    @cargo install cargo-release
     @echo "Setup complete"
+
+# Create a new release using cargo-release.
+# This handles version bumping, committing, tagging, and pushing automatically.
+# Usage:
+#   just release patch        (e.g., 0.1.0 -> 0.1.1)
+#   just release minor        (e.g., 0.1.1 -> 0.2.0)
+#   just release 1.0.0        (set a specific version)
+release VERSION:
+    @echo "Creating and pushing release '{{VERSION}}' with cargo-release..."
+    @cargo release {{VERSION}} --execute

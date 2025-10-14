@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Build and Release ${{ matrix.os }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # Define the architectures for each OS
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: windows-latest
+            arch: x86_64
+          - os: macos-latest
+            arch: aarch64 # This is the only macOS architecture now
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libudev-dev \
+          pkg-config \
+          libxcb1-dev \
+          libxcb-render0-dev \
+          libxcb-shape0-dev \
+          libxcb-xfixes0-dev \
+          libxcb-randr0-dev \
+          libxcb-xtest0-dev \
+          libxcb-xinerama0-dev \
+          libxcb-xkb-dev \
+          libxcb-cursor-dev \
+          libxcb-keysyms1-dev \
+          libxcb-util0-dev
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-${{ runner.arch }}-cargo-stable-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('justfile') }}
+
+    - name: Install just
+      uses: extractions/setup-just@v2
+
+    - name: Run CI checks and build
+      run: just ci-strict
+
+    - name: Prepare binary for release
+      id: prepare_binary
+      shell: bash
+      run: |
+        # Set OS-specific names
+        OS_NAME=""
+        if [[ "${{ runner.os }}" == "Linux" ]]; then
+          OS_NAME="linux"
+        elif [[ "${{ runner.os }}" == "macOS" ]]; then
+          OS_NAME="macos"
+        elif [[ "${{ runner.os }}" == "Windows" ]]; then
+          OS_NAME="windows"
+        fi
+
+        # Determine binary name and extension
+        SOURCE_NAME="rustcom"
+        EXTENSION=""
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          EXTENSION=".exe"
+        fi
+        
+        # Construct the final name
+        FINAL_NAME="${SOURCE_NAME}-${{ github.ref_name }}-${OS_NAME}-${{ runner.arch }}${EXTENSION}"
+        
+        # Rename the file
+        mv "target/release/${SOURCE_NAME}${EXTENSION}" "target/release/${FINAL_NAME}"
+        
+        # Set output for artifact upload
+        echo "final_name=${FINAL_NAME}" >> $GITHUB_OUTPUT
+
+    - name: Upload binaries
+      uses: actions/upload-artifact@v4
+      with:
+        name: rustcom-${{ runner.os }}-${{ runner.arch }}
+        path: target/release/${{ steps.prepare_binary.outputs.final_name }}
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: release
+    permissions:
+      contents: write
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: Release ${{ github.ref_name }}
+        files: artifacts/**/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true

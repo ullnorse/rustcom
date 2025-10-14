@@ -1,3 +1,9 @@
+[![CI](https://github.com/ullnorse/rustcom/actions/workflows/ci.yml/badge.svg)](https://github.com/ullnorse/rustcom/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/rustcom)](https://crates.io/crates/rustcom)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Rust](https://img.shields.io/badge/rust-1.60+-orange.svg)](https://www.rust-lang.org)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue.svg)](https://github.com/ullnorse/rustcom)
+[![GUI](https://img.shields.io/badge/GUI-egui-purple.svg)](https://github.com/emilk/egui)
 # Rustcom
 
 A cross-platform graphical serial terminal for embedded systems development and hardware debugging.
